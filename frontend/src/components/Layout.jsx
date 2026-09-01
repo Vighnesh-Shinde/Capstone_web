@@ -26,6 +26,7 @@ export default function Layout({ children }) {
                 <NavLink to="/admin/users">Users</NavLink>
                 <NavLink to="/admin/dataset">Dataset</NavLink>
                 <NavLink to="/admin/models">Models</NavLink>
+                <NavLink to="/admin/privacy">Privacy</NavLink>
               </>
             ) : (
               <>

@@ -76,6 +76,43 @@ export async function rejectDatasetSample(id, notes) {
   return data;
 }
 
+// Needs the JWT header, so a plain <a href> won't authenticate — fetch as a
+// blob and save via a temporary object URL, same as the document download above.
+export async function downloadDatasetExport() {
+  const response = await apiClient.get("/admin/dataset/export", { responseType: "blob" });
+  const url = URL.createObjectURL(response.data);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = `depression-dataset-${new Date().toISOString().slice(0, 10)}.zip`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  URL.revokeObjectURL(url);
+}
+
+// --- privacy ---
+
+export async function searchParticipants(search) {
+  const { data } = await apiClient.get("/admin/privacy/participants", {
+    params: { search: search || undefined },
+  });
+  return data;
+}
+
+export async function withdrawConsent(sessionId) {
+  await apiClient.post(`/admin/privacy/sessions/${sessionId}/withdraw-consent`);
+}
+
+export async function eraseParticipant(participantId) {
+  const { data } = await apiClient.delete(`/admin/privacy/participants/${participantId}`);
+  return data;
+}
+
+export async function runRetentionSweep() {
+  const { data } = await apiClient.post("/admin/privacy/retention-sweep");
+  return data;
+}
+
 // --- users ---
 
 export async function listUsers({ role, search, page = 0, size = 20 } = {}) {

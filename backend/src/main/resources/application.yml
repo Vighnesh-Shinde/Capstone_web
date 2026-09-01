@@ -93,6 +93,13 @@ app:
     # directory, so in a containerised deployment this must be a shared volume.
     dir: ${MODELS_DIR:../ml-service/models}
     max-bytes: 524288000   # 500MB
+  video-retention:
+    # Raw recordings are deleted after this many days. Reports, transcripts and
+    # feature vectors are kept, so retention costs neither the clinical record
+    # nor the ability to retrain.
+    enabled: ${VIDEO_RETENTION_ENABLED:true}
+    days: ${VIDEO_RETENTION_DAYS:30}
+    cron: ${VIDEO_RETENTION_CRON:0 15 3 * * *}
   cors:
     allowed-origins: http://localhost:5173
 

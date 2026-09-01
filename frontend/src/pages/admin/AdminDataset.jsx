@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { listDatasetSamples } from "../../api/admin";
+import { downloadDatasetExport, listDatasetSamples } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
 
 const STATUS_FILTERS = [
@@ -17,6 +17,8 @@ export default function AdminDataset() {
   const [samplesPage, setSamplesPage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
+  const [exporting, setExporting] = useState(false);
   const [groupByParticipant, setGroupByParticipant] = useState(false);
 
   useEffect(() => {
@@ -58,9 +60,28 @@ export default function AdminDataset() {
     return result;
   }, [samplesPage, groupByParticipant]);
 
+  async function handleExport() {
+    setExporting(true);
+    setError("");
+    setNotice("");
+    try {
+      await downloadDatasetExport();
+      setNotice("Export downloaded. Read the README inside — it records what was included and why.");
+    } catch {
+      setError("Export failed.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="page">
-      <h1>Research Dataset</h1>
+      <header className="page-header">
+        <h1>Research Dataset</h1>
+        <button className="btn-primary" onClick={handleExport} disabled={exporting}>
+          {exporting ? "Preparing…" : "Export approved dataset"}
+        </button>
+      </header>
       <p className="muted">
         Completed sessions become eligible for review only after participant
         research-reuse consent and counselor judgment are present. Nothing here
@@ -92,6 +113,7 @@ export default function AdminDataset() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
+      {notice && <div className="alert alert-success">{notice}</div>}
       {loading && <p className="muted">Loading...</p>}
 
       {!loading && samplesPage && samplesPage.content.length === 0 && (

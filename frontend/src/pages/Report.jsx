@@ -4,6 +4,8 @@ import { getReport, getSession } from "../api/sessions";
 import ExplanationFactorBar from "../components/ExplanationFactorBar";
 import ModalityContributions from "../components/ModalityContributions";
 import JudgmentPanel from "../components/JudgmentPanel";
+import ConsentRecord from "../components/ConsentRecord";
+import SessionNotes from "../components/SessionNotes";
 
 export default function Report() {
   const { id } = useParams();
@@ -121,6 +123,13 @@ export default function Report() {
               onSubmitted={(judgment) => setReport((r) => ({ ...r, judgment }))}
             />
           </div>
+
+          {/* Shown here rather than only on SessionDetail: a completed session
+              redirects straight to this page, so the consent record would
+              otherwise be somewhere the counselor never lands. */}
+          <ConsentRecord session={session} />
+
+          <SessionNotes sessionId={id} initialNotes={session?.notes} />
         </>
       )}
     </div>

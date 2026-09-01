@@ -327,6 +327,61 @@ works with no manifest at all.
 > ML service should also not be reachable from the public internet; the
 > `ML_ADMIN_TOKEN` is defence in depth, not the only defence.
 
+## The data lifecycle
+
+What is kept, for how long, and why — the design that makes retraining and
+privacy compatible rather than opposed.
+
+| Artifact | Retained | Why |
+|---|---|---|
+| Raw recording | **Deleted after `VIDEO_RETENTION_DAYS`** (default 30) | Most sensitive artifact, least necessary to keep long-term |
+| Transcript (participant speech) | Indefinitely | Clinical record; also usable for retraining |
+| Feature vectors (3096 text + 85 audio) | Indefinitely | **This is what makes video deletion possible** — a training set can be rebuilt from these without ever touching the recording |
+| Report + counselor assessment | Indefinitely | The clinical output |
+| Audit log | Indefinitely, including after erasure | An untraceable erasure would be worse than none |
+
+Feature vectors are captured at processing time and stored as JSONB. Without
+them, building a training set from real sessions would mean re-running ffmpeg,
+Whisper, diarization and sentence embedding over every archived recording —
+which would force the video to be kept forever.
+
+### Dataset export
+
+Admin → **Dataset** → *Export approved dataset*. Produces a ZIP:
+
+- `features.csv` — one row per session: `session_id`, `label`, then
+  `text_0..3095` and `audio_0..84`, in the models' exact input order.
+- `metadata.csv` — human-readable context, including what the model predicted
+  and whether the counselor agreed.
+- `README.txt` — what was included, what was skipped and why, and how to handle it.
+
+**The label is the counselor's own assessment, never the model's prediction.**
+Training on the model's output would only teach a new model to reproduce the
+current one's mistakes. The rows where the counselor *disagreed* with the model
+are the most informative in the file.
+
+A session is exportable only if all three hold: the participant consented to
+research reuse and has not withdrawn it; an administrator approved the sample;
+and a counselor recorded an assessment.
+
+### Privacy operations
+
+Admin → **Privacy**.
+
+- **Retention sweep** — runs nightly (`VIDEO_RETENTION_CRON`), triggerable manually.
+- **Withdraw consent** (per session) — removes it from the research dataset and
+  marks it. The clinical record is retained.
+- **Erase participant** — destroys sessions, recordings, transcripts, feature
+  vectors, reports and assessments. Irreversible; requires typing the
+  participant reference to confirm. An audit entry recording that the erasure
+  happened is deliberately kept.
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `VIDEO_RETENTION_ENABLED` | `true` | Turn the nightly sweep off entirely |
+| `VIDEO_RETENTION_DAYS` | `30` | Age at which recordings are deleted |
+| `VIDEO_RETENTION_CRON` | `0 15 3 * * *` | When the sweep runs (03:15 daily) |
+
 ## Prerequisites
 
 - Java 17+

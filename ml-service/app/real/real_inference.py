@@ -114,6 +114,16 @@ def run_real_inference(session_id: str, video_path: str) -> ProcessResponse:
             confidence_score=round(p_final, 4),
             explanation=explanation,
             modality_contributions=modality_contributions,
+            # Returned so the backend can persist them: these are exactly what
+            # a retrained model would need as input, so storing them means a
+            # training set can be assembled later without the original video.
+            text_features=[float(v) for v in text_raw],
+            audio_features=[float(v) for v in audio_raw],
+            # Participant speech only — the counselor's turns are excluded, the
+            # same way the text model sees it.
+            transcript_text=" ".join(
+                seg.text for seg in transcript.participant_segments
+            ).strip(),
         )
     finally:
         media_pipeline.cleanup_wav(transcript.wav_path)

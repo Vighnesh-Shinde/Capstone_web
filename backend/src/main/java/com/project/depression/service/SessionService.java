@@ -241,6 +241,14 @@ public class SessionService {
                 prediction == null ? null : prediction.name(),
                 confidenceScore,
                 session.getNotes(),
+                session.isConsentRecording(),
+                session.isConsentAiAnalysis(),
+                session.isConsentStorage(),
+                session.isConsentResearchReuse(),
+                session.getConsentVersion(),
+                session.getConsentRecordedAt(),
+                session.getConsentWithdrawnAt(),
+                session.getVideoDeletedAt(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );

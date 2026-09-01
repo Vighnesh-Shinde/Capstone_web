@@ -76,6 +76,16 @@ public class Session {
     @Column(name = "consent_recorded_at")
     private Instant consentRecordedAt;
 
+    // Set when a participant withdraws consent after the fact. Excludes the
+    // session from the research dataset without destroying the clinical record.
+    @Column(name = "consent_withdrawn_at")
+    private Instant consentWithdrawnAt;
+
+    // Set when the retention sweep removes the raw recording. The report,
+    // transcript and feature vectors deliberately outlive it.
+    @Column(name = "video_deleted_at")
+    private Instant videoDeletedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 

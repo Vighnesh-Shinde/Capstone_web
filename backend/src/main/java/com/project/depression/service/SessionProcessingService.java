@@ -6,8 +6,10 @@ import com.project.depression.entity.ExplanationFactor;
 import com.project.depression.entity.Prediction;
 import com.project.depression.entity.Report;
 import com.project.depression.entity.Session;
+import com.project.depression.entity.SessionFeatures;
 import com.project.depression.entity.SessionStatus;
 import com.project.depression.repository.ReportRepository;
+import com.project.depression.repository.SessionFeaturesRepository;
 import com.project.depression.repository.SessionRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,17 +35,20 @@ public class SessionProcessingService {
 
     private final SessionRepository sessionRepository;
     private final ReportRepository reportRepository;
+    private final SessionFeaturesRepository sessionFeaturesRepository;
     private final MlServiceClient mlServiceClient;
     private final DatasetEligibilityService datasetEligibilityService;
 
     public SessionProcessingService(
             SessionRepository sessionRepository,
             ReportRepository reportRepository,
+            SessionFeaturesRepository sessionFeaturesRepository,
             MlServiceClient mlServiceClient,
             DatasetEligibilityService datasetEligibilityService
     ) {
         this.sessionRepository = sessionRepository;
         this.reportRepository = reportRepository;
+        this.sessionFeaturesRepository = sessionFeaturesRepository;
         this.mlServiceClient = mlServiceClient;
         this.datasetEligibilityService = datasetEligibilityService;
     }
@@ -82,6 +87,7 @@ public class SessionProcessingService {
             report.setExplanationFactors(factors);
 
             reportRepository.save(report);
+            persistFeatures(session, mlResponse);
 
             session.setStatus(SessionStatus.COMPLETED);
             sessionRepository.save(session);
@@ -92,5 +98,52 @@ public class SessionProcessingService {
             session.setStatus(SessionStatus.FAILED);
             sessionRepository.save(session);
         }
+    }
+
+    /**
+     * Store the vectors the models consumed, so this session can later join a
+     * training set without its video being re-processed.
+     *
+     * The mock pipeline returns none, and a failure to store them must never
+     * fail the session: the report is the clinical output and matters more than
+     * the research artifact.
+     */
+    private void persistFeatures(Session session, MlProcessResponse mlResponse) {
+        if (mlResponse.text_features() == null && mlResponse.audio_features() == null) {
+            return;
+        }
+
+        try {
+            double[] text = toArray(mlResponse.text_features());
+            double[] audio = toArray(mlResponse.audio_features());
+
+            sessionFeaturesRepository.save(SessionFeatures.builder()
+                    .session(session)
+                    .textFeatures(text)
+                    .audioFeatures(audio)
+                    .textFeatureCount(text == null ? null : text.length)
+                    .audioFeatureCount(audio == null ? null : audio.length)
+                    .transcriptText(mlResponse.transcript_text())
+                    .build());
+
+            log.info("Stored features for session {} ({} text, {} audio)",
+                    session.getId(),
+                    text == null ? 0 : text.length,
+                    audio == null ? 0 : audio.length);
+        } catch (Exception e) {
+            log.error("Could not store features for session {} — the report is unaffected",
+                    session.getId(), e);
+        }
+    }
+
+    private static double[] toArray(List<Double> values) {
+        if (values == null || values.isEmpty()) {
+            return null;
+        }
+        double[] out = new double[values.size()];
+        for (int i = 0; i < values.size(); i++) {
+            out[i] = values.get(i);
+        }
+        return out;
     }
 }

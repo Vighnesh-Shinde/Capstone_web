@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal
+from typing import Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -24,3 +24,13 @@ class ProcessResponse(BaseModel):
     explanation: List[ExplanationItem]
     # Coarse per-modality contribution to the fused prediction (roughly sums to 1.0).
     modality_contributions: Dict[str, float]
+
+    # The exact vectors the models consumed, returned so the backend can store
+    # them. That is what lets a future training set be built from real sessions
+    # without re-running the whole media pipeline over archived video — and
+    # therefore what lets the raw video be deleted on a retention schedule.
+    #
+    # Optional because the mock pipeline has no real features to report.
+    text_features: Optional[List[float]] = None
+    audio_features: Optional[List[float]] = None
+    transcript_text: Optional[str] = None

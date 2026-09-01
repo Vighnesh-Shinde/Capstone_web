@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getSession } from "../api/sessions";
+import ConsentRecord from "../components/ConsentRecord";
 import SessionNotes from "../components/SessionNotes";
 import StatusBadge from "../components/StatusBadge";
 
@@ -147,6 +148,7 @@ export default function SessionDetail() {
           </div>
 
           <SessionNotes sessionId={session.id} initialNotes={session.notes} />
+          <ConsentRecord session={session} />
         </>
       )}
     </div>

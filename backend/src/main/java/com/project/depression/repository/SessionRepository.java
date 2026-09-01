@@ -8,6 +8,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
@@ -27,4 +29,19 @@ public interface SessionRepository extends JpaRepository<Session, UUID>, JpaSpec
 
     /** Oldest first — the participant timeline reads left to right. */
     List<Session> findByParticipantOrderByCreatedAtAsc(Participant participant);
+
+    List<Session> findByParticipant(Participant participant);
+
+    /**
+     * Sessions past the retention window whose recording is still on disk.
+     * videoDeletedAt IS NULL is what stops an already-purged session being
+     * reconsidered on every subsequent sweep.
+     */
+    @Query("""
+            SELECT s FROM Session s
+            WHERE s.videoPath IS NOT NULL
+              AND s.videoDeletedAt IS NULL
+              AND s.createdAt < :cutoff
+            """)
+    List<Session> findVideosToPurge(@Param("cutoff") Instant cutoff);
 }

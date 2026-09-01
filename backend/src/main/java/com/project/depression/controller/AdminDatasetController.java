@@ -8,12 +8,16 @@ import com.project.depression.entity.DatasetEligibilityStatus;
 import com.project.depression.entity.User;
 import com.project.depression.repository.UserRepository;
 import com.project.depression.service.DatasetAdminService;
+import com.project.depression.service.DatasetExportService;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Sort;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.servlet.mvc.method.annotation.StreamingResponseBody;
 
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -23,11 +27,35 @@ import java.util.UUID;
 public class AdminDatasetController {
 
     private final DatasetAdminService datasetAdminService;
+    private final DatasetExportService datasetExportService;
     private final UserRepository userRepository;
 
-    public AdminDatasetController(DatasetAdminService datasetAdminService, UserRepository userRepository) {
+    public AdminDatasetController(
+            DatasetAdminService datasetAdminService,
+            DatasetExportService datasetExportService,
+            UserRepository userRepository
+    ) {
         this.datasetAdminService = datasetAdminService;
+        this.datasetExportService = datasetExportService;
         this.userRepository = userRepository;
+    }
+
+    /**
+     * Streams the approved dataset as a ZIP rather than building it in memory —
+     * the feature CSV is ~3,181 columns per row and grows without bound.
+     */
+    @GetMapping("/export")
+    public ResponseEntity<StreamingResponseBody> export(Authentication authentication) {
+        User admin = currentAdmin(authentication);
+        String filename = "depression-dataset-"
+                + java.time.LocalDate.now(java.time.ZoneOffset.UTC) + ".zip";
+
+        StreamingResponseBody body = out -> datasetExportService.writeExport(out, admin);
+
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_OCTET_STREAM)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(body);
     }
 
     @GetMapping
