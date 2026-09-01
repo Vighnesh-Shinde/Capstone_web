@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: depression-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: depression_db
+      POSTGRES_USER: depression_user
+      POSTGRES_PASSWORD: depression_pass
+    ports:
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U depression_user -d depression_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  pgdata:

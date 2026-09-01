@@ -1,0 +1,35 @@
+# --- API layer (unchanged, mock and real both use this) ---
+fastapi>=0.118.0
+uvicorn[standard]>=0.34.0
+pydantic>=2.11.0
+# pydantic and pydantic-core must be an exactly matching pair (pydantic checks
+# this at import time and refuses to load if not) — some of the ML packages
+# below pull in a newer pydantic-core transitively and break this if it's left
+# unpinned. Pin both together; bump in lockstep if you upgrade pydantic.
+pydantic-core==2.46.4
+python-dotenv
+
+# --- real inference: media pipeline dependency note ---
+# ffmpeg is downloaded separately (not via pip) — see README "Real model
+# integration". The SHARED build is required (not the static "essentials"
+# build): torchcodec, pulled in by pyannote's diarization pipeline below,
+# dynamically loads FFmpeg's shared libraries (avcodec-*.dll etc.) at
+# runtime, which a static ffmpeg.exe alone doesn't provide.
+
+# --- real inference: model loading ---
+# Pinned to match friend_shared_work/VERSIONS.txt exactly — scikit-learn
+# models saved with joblib can fail to load, or silently mis-load, across
+# major version gaps.
+scikit-learn==1.6.1
+numpy
+scipy
+joblib
+
+# --- real inference: media pipeline (video -> audio -> transcript -> diarization) ---
+faster-whisper>=1.0.0
+pyannote.audio>=3.3.0
+soundfile
+librosa
+
+# --- real inference: text feature computation (once the real script lands) ---
+sentence-transformers>=3.0.0

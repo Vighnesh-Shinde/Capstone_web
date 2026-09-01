@@ -1,0 +1,47 @@
+# uploaded media (local disk storage, not committed)
+uploads/*
+!uploads/.gitkeep
+
+# backend
+backend/target/
+backend/.mvn/wrapper/maven-wrapper.jar
+# local secrets: admin credentials, JWT signing key, SMTP password
+backend/.env
+
+# frontend
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+
+# ml-service
+ml-service/venv/
+ml-service/__pycache__/
+ml-service/app/__pycache__/
+ml-service/.env
+# ffmpeg binaries (~300MB) - downloaded per machine, see README.
+# NOTE: the comment must be on its own line. Git only treats '#' as a comment
+# at the start of a line, so a trailing "# ..." would become part of the
+# pattern and silently match nothing.
+ml-service/tools/
+ml-service/**/__pycache__/
+
+# your friend's shared model files/docs - not meant for the public repo
+friend_shared_work/
+
+# Your friend's full research repo (~1.4GB: trained models, extracted feature
+# matrices, MentalBERT checkpoints). Reference material for implementing the
+# feature extractors - not part of this application.
+Friends_Work/
+
+# DAIC-WOZ interview transcripts.
+# NEVER COMMIT THIS. These are real clinical interviews with real people, held
+# under a research licence that prohibits redistribution. Committing them -
+# especially to a public remote - would breach that licence and expose the
+# participants' data. Each machine obtains the corpus itself.
+Dataset/
+
+# OS / IDE
+.DS_Store
+.idea/
+.vscode/
+*.iml

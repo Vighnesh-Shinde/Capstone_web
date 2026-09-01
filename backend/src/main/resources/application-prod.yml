@@ -1,0 +1,15 @@
+# Activate with SPRING_PROFILES_ACTIVE=prod. Every secret below has NO
+# fallback default — Spring refuses to start if the env var is missing,
+# instead of silently falling back to a publicly-visible dev value.
+spring:
+  datasource:
+    url: ${DB_URL}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+
+app:
+  jwt:
+    secret: ${JWT_SECRET}
+  seed-demo-data: false
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}
