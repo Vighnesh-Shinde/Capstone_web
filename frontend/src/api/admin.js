@@ -99,6 +99,37 @@ export async function issueUserPasswordReset(id) {
   await apiClient.post(`/admin/users/${id}/reset-password`);
 }
 
+// --- model weights ---
+
+export async function listModelVersions(modality) {
+  const { data } = await apiClient.get("/admin/models", {
+    params: { modality: modality || undefined },
+  });
+  return data;
+}
+
+export async function uploadModelVersion({ modality, file, versionLabel, notes }) {
+  const formData = new FormData();
+  formData.append("modality", modality);
+  formData.append("file", file);
+  if (versionLabel) formData.append("versionLabel", versionLabel);
+  if (notes) formData.append("notes", notes);
+
+  const { data } = await apiClient.post("/admin/models", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+  });
+  return data;
+}
+
+export async function activateModelVersion(id) {
+  const { data } = await apiClient.post(`/admin/models/${id}/activate`);
+  return data;
+}
+
+export async function revertModelToDefault(modality) {
+  await apiClient.post("/admin/models/revert-to-default", null, { params: { modality } });
+}
+
 // --- stats ---
 
 export async function getAdminStats() {

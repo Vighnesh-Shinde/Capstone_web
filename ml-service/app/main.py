@@ -6,6 +6,7 @@ from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.internal_admin import router as internal_router
 from app.mock_inference import run_inference
 from app.schemas import ProcessRequest, ProcessResponse
 
@@ -26,6 +27,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Operator endpoints for model-weight management, called by the backend.
+# Token-gated — see internal_admin.py.
+app.include_router(internal_router)
 
 
 @app.on_event("startup")

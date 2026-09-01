@@ -1375,3 +1375,69 @@ a.stat-card.actionable .stat-value {
     background: #fff;
   }
 }
+
+/* --- Phase 3: model weight management --- */
+
+.tag-active {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--success-bg);
+  color: var(--success);
+}
+
+tr.row-active {
+  background: var(--success-bg);
+}
+
+/* Version labels are long and arbitrary; keep them from blowing out the tile. */
+.model-active-label {
+  font-size: 17px;
+  line-height: 1.3;
+  word-break: break-word;
+  margin: 4px 0;
+}
+
+.mono {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11px;
+}
+
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 0.9em;
+  background: var(--bg);
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+select.search-input {
+  max-width: none;
+  width: 100%;
+  cursor: pointer;
+}
+
+input[type="file"] {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  font-size: 14px;
+  cursor: pointer;
+}
+
+input[type="file"]:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.revert-link {
+  margin-top: 10px;
+  margin-bottom: 0;
+  align-self: flex-start;
+  font-size: 13px;
+}

@@ -25,6 +25,7 @@ export default function Layout({ children }) {
                 <NavLink to="/admin/applications">Access Requests</NavLink>
                 <NavLink to="/admin/users">Users</NavLink>
                 <NavLink to="/admin/dataset">Dataset</NavLink>
+                <NavLink to="/admin/models">Models</NavLink>
               </>
             ) : (
               <>

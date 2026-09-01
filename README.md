@@ -277,14 +277,55 @@ CORS_ALLOWED_ORIGINS=https://your-frontend-domain \
 
 ### Environment variables (backend)
 
+Local values go in `backend/.env` (gitignored — copy `backend/.env.example`).
+Spring imports that file automatically; real environment variables override it.
+
 | Variable | Required in `prod`? | Purpose |
 |---|---|---|
 | `JWT_SECRET` | Yes | JWT signing key |
 | `DB_URL`, `DB_USERNAME`, `DB_PASSWORD` | Yes | Postgres connection |
 | `CORS_ALLOWED_ORIGINS` | Yes | Comma-separated allowed frontend origin(s) |
+| `ADMIN_USERNAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Yes | Operator admin account, seeded on first startup. There is no admin signup. |
+| `ADMIN_NAME` | No | Display name for that account |
+| `ML_ADMIN_TOKEN` | Yes | Shared secret for the ML service's `/internal/*` endpoints. Must match `ML_ADMIN_TOKEN` in `ml-service/.env`. |
+| `MODELS_DIR` | No (default `../ml-service/models`) | Where uploaded model weights are written. **The backend and ML service must both see this directory** — a shared volume when containerised. |
+| `FRONTEND_BASE_URL` | Yes | Used to build password-reset links |
+| `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM` | No | SMTP for password-reset email. Leave `MAIL_HOST` blank and reset links are written to the log instead of sent. For Gmail, `MAIL_PASSWORD` must be an App Password. |
 | `SEED_DEMO_DATA` | No (forced `false` under `prod`) | Seed demo counselor/admin on startup |
 | `DEMO_COUNSELOR_PASSWORD`, `DEMO_ADMIN_PASSWORD` | No | Override the dev-default seeded passwords |
 | `ML_SERVICE_URL` | No (default `http://localhost:8000`) | Base URL of the ML service |
+
+## Managing model weights (retraining loop)
+
+Admin → **Models**. This is what makes retraining deployable without a code
+change: train elsewhere on GPU, upload the `.joblib`, activate it.
+
+1. **Upload** a bundle for one stage (text / audio / fusion).
+2. The backend stores it and asks the ML service to **inspect** it —
+   Java can't read a scikit-learn joblib, so validation happens in Python
+   (`POST /internal/validate-model`).
+3. The upload is **rejected** unless the model's input width matches the stage
+   (text 3096, audio 85, fusion 2) and the bundle carries a `threshold`.
+   This check is the point of the whole flow: a mis-shaped model still loads and
+   still returns a probability — it just returns a meaningless one. A rejected
+   file is deleted and never recorded.
+4. **Activate** flips the active row, rewrites `ml-service/models/active_manifest.json`,
+   and calls `POST /internal/reload-models`. New sessions use the new weights
+   immediately; existing reports are untouched.
+5. **Rollback** = activate an earlier version. **Revert to built-in** returns a
+   stage to the weights that shipped with the project, for when a bad upload has
+   no earlier version to fall back to.
+
+A stage with no active row falls back to its shipped default, so a fresh install
+works with no manifest at all.
+
+> **⚠️ Uploading a model executes code.** A `.joblib` is a Python pickle, and
+> loading one runs whatever it contains inside the ML service process. Model
+> upload is therefore equivalent to remote code execution on that host. It is
+> restricted to authenticated `ADMIN` users for exactly that reason — treat
+> admin accounts as fully trusted, and never widen this endpoint's access. The
+> ML service should also not be reachable from the public internet; the
+> `ML_ADMIN_TOKEN` is defence in depth, not the only defence.
 
 ## Prerequisites
 

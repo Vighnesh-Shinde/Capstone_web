@@ -23,6 +23,7 @@ import AdminHome from "./pages/admin/AdminHome";
 import AdminApplications from "./pages/admin/AdminApplications";
 import AdminApplicationDetail from "./pages/admin/AdminApplicationDetail";
 import AdminUsers from "./pages/admin/AdminUsers";
+import AdminModels from "./pages/admin/AdminModels";
 import AdminDataset from "./pages/admin/AdminDataset";
 import AdminDatasetDetail from "./pages/admin/AdminDatasetDetail";
 
@@ -71,6 +72,7 @@ export default function App() {
               <Route path="/admin/applications" element={<AdminApplications />} />
               <Route path="/admin/applications/:id" element={<AdminApplicationDetail />} />
               <Route path="/admin/users" element={<AdminUsers />} />
+              <Route path="/admin/models" element={<AdminModels />} />
               <Route path="/admin/dataset" element={<AdminDataset />} />
               <Route path="/admin/dataset/:id" element={<AdminDatasetDetail />} />
             </Route>

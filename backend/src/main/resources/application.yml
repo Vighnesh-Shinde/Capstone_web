@@ -26,8 +26,11 @@ spring:
     locations: classpath:db/migration
   servlet:
     multipart:
-      max-file-size: 350MB
-      max-request-size: 350MB
+      # Headroom over app.uploads.video-max-bytes (300MB) and
+      # app.models.max-bytes (500MB); those limits are enforced per-endpoint
+      # with a useful error message, this is only the outer guard.
+      max-file-size: 520MB
+      max-request-size: 520MB
   # SMTP for password-reset emails. Leave MAIL_HOST unset and MailService logs
   # the reset link instead of sending it — nothing breaks before you configure
   # a provider. Supply your own credentials in backend/.env (gitignored).
@@ -81,6 +84,15 @@ app:
     document-max-bytes: 10485760 # 10MB
   ml-service:
     base-url: ${ML_SERVICE_URL:http://localhost:8000}
+    # Shared secret for the ML service's /internal/* operator endpoints.
+    # Must match ML_ADMIN_TOKEN in ml-service/.env. If unset, the ML service
+    # refuses those endpoints outright rather than allowing them unauthenticated.
+    admin-token: ${ML_ADMIN_TOKEN:}
+  models:
+    # Where uploaded model weights are written. The ML service reads the same
+    # directory, so in a containerised deployment this must be a shared volume.
+    dir: ${MODELS_DIR:../ml-service/models}
+    max-bytes: 524288000   # 500MB
   cors:
     allowed-origins: http://localhost:5173
 
