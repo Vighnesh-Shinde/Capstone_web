@@ -64,6 +64,12 @@ public class Session {
     @Builder.Default
     private boolean consentResearchReuse = false;
 
+    // The counselor's own editable working notes. Distinct from
+    // CounselorJudgment.observation, which is the formal assessment that feeds
+    // the research dataset and is written once.
+    @Column(name = "notes", length = 4000)
+    private String notes;
+
     @Column(name = "consent_version")
     private String consentVersion;
 

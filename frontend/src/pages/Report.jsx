@@ -43,10 +43,21 @@ export default function Report() {
 
   return (
     <div className="page">
-      <Link to="/" className="btn-link">
+      <Link to="/sessions" className="btn-link">
         ← Back to sessions
       </Link>
-      <h1>Report</h1>
+
+      <header className="page-header">
+        <h1>Report</h1>
+        {report && (
+          // Browser print dialog rather than a PDF library: "Save as PDF" is
+          // built into every browser's print flow, so this needs no dependency
+          // and produces a file the counselor can file or hand over.
+          <button className="btn-secondary" onClick={() => window.print()}>
+            Print / Save as PDF
+          </button>
+        )}
+      </header>
 
       {loading && <p className="muted">Loading report...</p>}
       {error && <div className="alert alert-error">{error}</div>}
@@ -71,7 +82,7 @@ export default function Report() {
             <p className="muted small">
               Generated {new Date(report.createdAt).toLocaleString()}
             </p>
-            <div className="alert alert-error" style={{ background: "var(--warning-bg)", color: "var(--warning)" }}>
+            <div className="alert alert-warning report-disclaimer">
               This is an AI screening-support indicator, not a diagnosis. It is
               wrong in roughly 1 of every 4 cases. A qualified clinician should
               review this result alongside their own professional judgment

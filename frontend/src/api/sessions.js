@@ -1,7 +1,30 @@
 import apiClient from "./client";
 
-export async function listSessions(page = 0, size = 20) {
-  const { data } = await apiClient.get("/sessions", { params: { page, size } });
+export async function listSessions({
+  status,
+  participantId,
+  search,
+  sort = "createdAt",
+  direction = "desc",
+  page = 0,
+  size = 20,
+} = {}) {
+  const { data } = await apiClient.get("/sessions", {
+    params: {
+      status: status || undefined,
+      participantId: participantId || undefined,
+      search: search || undefined,
+      sort,
+      direction,
+      page,
+      size,
+    },
+  });
+  return data;
+}
+
+export async function getSessionStats() {
+  const { data } = await apiClient.get("/sessions/stats");
   return data;
 }
 
@@ -12,6 +35,11 @@ export async function getSession(id) {
 
 export async function getReport(id) {
   const { data } = await apiClient.get(`/sessions/${id}/report`);
+  return data;
+}
+
+export async function updateSessionNotes(id, notes) {
+  const { data } = await apiClient.patch(`/sessions/${id}/notes`, { notes });
   return data;
 }
 

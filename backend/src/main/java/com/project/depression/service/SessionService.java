@@ -3,11 +3,14 @@ package com.project.depression.service;
 import com.project.depression.dto.*;
 import com.project.depression.entity.*;
 import com.project.depression.repository.CounselorJudgmentRepository;
+import com.project.depression.repository.ParticipantRepository;
 import com.project.depression.repository.ReportRepository;
 import com.project.depression.repository.SessionRepository;
 import com.project.depression.repository.UserRepository;
+import jakarta.persistence.criteria.Predicate;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -16,6 +19,8 @@ import org.springframework.web.server.ResponseStatusException;
 import org.springframework.http.HttpStatus;
 
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.UUID;
@@ -36,6 +41,7 @@ public class SessionService {
     private final SessionProcessingService sessionProcessingService;
     private final FileStorageService fileStorageService;
     private final ParticipantService participantService;
+    private final ParticipantRepository participantRepository;
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -44,7 +50,8 @@ public class SessionService {
             CounselorJudgmentRepository judgmentRepository,
             SessionProcessingService sessionProcessingService,
             FileStorageService fileStorageService,
-            ParticipantService participantService
+            ParticipantService participantService,
+            ParticipantRepository participantRepository
     ) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
@@ -53,6 +60,7 @@ public class SessionService {
         this.sessionProcessingService = sessionProcessingService;
         this.fileStorageService = fileStorageService;
         this.participantService = participantService;
+        this.participantRepository = participantRepository;
     }
 
     // Deliberately not @Transactional: each save() below commits on its own,
@@ -91,17 +99,88 @@ public class SessionService {
         return toSessionResponse(session, null, null);
     }
 
+    /**
+     * The counselor's session list, with optional filters. Ownership is always
+     * applied as a predicate rather than checked afterwards, so a counselor can
+     * never page through another's sessions regardless of the other filters.
+     */
     @Transactional(readOnly = true)
-    public PageResponse<SessionResponse> listSessions(String counselorEmail, Pageable pageable) {
+    public PageResponse<SessionResponse> listSessions(
+            String counselorEmail, SessionStatus status, UUID participantId, String search, Pageable pageable
+    ) {
         User counselor = userRepository.findByEmail(counselorEmail)
                 .orElseThrow(() -> new NoSuchElementException("Counselor not found"));
 
-        Page<Session> sessions = sessionRepository.findByCounselorOrderByCreatedAtDesc(counselor, pageable);
+        Page<Session> sessions = sessionRepository.findAll(
+                ownedBy(counselor, status, participantId, search), pageable);
         Page<SessionResponse> mapped = sessions.map(s -> {
             Report report = reportRepository.findBySessionId(s.getId()).orElse(null);
             return toSessionResponse(s, report == null ? null : report.getPrediction(), report == null ? null : report.getConfidenceScore());
         });
         return PageResponse.from(mapped);
+    }
+
+    /**
+     * Only the filters actually supplied become predicates. A JPQL query with
+     * `:param IS NULL OR ...` guards breaks on PostgreSQL, which infers an
+     * untyped null bind as bytea.
+     */
+    private static Specification<Session> ownedBy(
+            User counselor, SessionStatus status, UUID participantId, String search
+    ) {
+        return (root, query, cb) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            predicates.add(cb.equal(root.get("counselor"), counselor));
+
+            if (status != null) {
+                predicates.add(cb.equal(root.get("status"), status));
+            }
+            if (participantId != null) {
+                predicates.add(cb.equal(root.get("participant").get("id"), participantId));
+            }
+            if (search != null && !search.isBlank()) {
+                predicates.add(cb.like(
+                        cb.lower(root.get("participantRef")), "%" + search.trim().toLowerCase() + "%"));
+            }
+
+            return cb.and(predicates.toArray(Predicate[]::new));
+        };
+    }
+
+    @Transactional(readOnly = true)
+    public CounselorStatsResponse getStats(String counselorEmail) {
+        User counselor = userRepository.findByEmail(counselorEmail)
+                .orElseThrow(() -> new NoSuchElementException("Counselor not found"));
+
+        long awaitingJudgment = sessionRepository
+                .findAll(ownedBy(counselor, SessionStatus.COMPLETED, null, null)).stream()
+                .filter(s -> reportRepository.findBySessionId(s.getId())
+                        .map(r -> judgmentRepository.findByReportId(r.getId()).isEmpty())
+                        .orElse(false))
+                .count();
+
+        return new CounselorStatsResponse(
+                sessionRepository.countByCounselor(counselor),
+                participantRepository.countByCounselor(counselor),
+                sessionRepository.countByCounselorAndCreatedAtAfter(
+                        counselor, Instant.now().minus(7, ChronoUnit.DAYS)),
+                awaitingJudgment,
+                sessionRepository.countByCounselorAndStatus(counselor, SessionStatus.PROCESSING)
+                        + sessionRepository.countByCounselorAndStatus(counselor, SessionStatus.UPLOADED),
+                sessionRepository.countByCounselorAndStatus(counselor, SessionStatus.FAILED)
+        );
+    }
+
+    @Transactional
+    public SessionResponse updateNotes(String counselorEmail, UUID sessionId, String notes) {
+        Session session = getOwnedSession(counselorEmail, sessionId);
+        session.setNotes(notes == null || notes.isBlank() ? null : notes.trim());
+        session = sessionRepository.save(session);
+
+        Report report = reportRepository.findBySessionId(sessionId).orElse(null);
+        return toSessionResponse(session,
+                report == null ? null : report.getPrediction(),
+                report == null ? null : report.getConfidenceScore());
     }
 
     @Transactional(readOnly = true)
@@ -156,10 +235,12 @@ public class SessionService {
     private SessionResponse toSessionResponse(Session session, Prediction prediction, Double confidenceScore) {
         return new SessionResponse(
                 session.getId(),
+                session.getParticipant() == null ? null : session.getParticipant().getId(),
                 session.getParticipantRef(),
                 session.getStatus().name(),
                 prediction == null ? null : prediction.name(),
                 confidenceScore,
+                session.getNotes(),
                 session.getCreatedAt(),
                 session.getUpdatedAt()
         );

@@ -1,15 +1,36 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { getSession } from "../api/sessions";
+import SessionNotes from "../components/SessionNotes";
 import StatusBadge from "../components/StatusBadge";
 
 const POLL_INTERVAL_MS = 3000;
+
+// Analysis takes minutes, not tens of minutes. Past this the job has almost
+// certainly died — the ML service was restarted mid-run, or the process was
+// killed — and the status will never advance on its own. Saying so beats
+// spinning forever next to an ever-growing timer.
+const STALE_AFTER_MS = 30 * 60 * 1000;
+
+function elapsedMs(since) {
+  return Date.now() - new Date(since).getTime();
+}
+
+function elapsedLabel(since) {
+  const seconds = Math.floor(elapsedMs(since) / 1000);
+  if (seconds < 60) return `${seconds}s`;
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ${seconds % 60}s`;
+  const hours = Math.floor(minutes / 60);
+  return `${hours}h ${minutes % 60}m`;
+}
 
 export default function SessionDetail() {
   const { id } = useParams();
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [error, setError] = useState("");
+  const [elapsed, setElapsed] = useState("");
   const timerRef = useRef(null);
 
   useEffect(() => {
@@ -28,7 +49,7 @@ export default function SessionDetail() {
         if (data.status === "UPLOADED" || data.status === "PROCESSING") {
           timerRef.current = setTimeout(poll, POLL_INTERVAL_MS);
         }
-      } catch (err) {
+      } catch {
         if (!cancelled) setError("Failed to load session status.");
       }
     }
@@ -40,41 +61,93 @@ export default function SessionDetail() {
     };
   }, [id, navigate]);
 
+  // A ticking elapsed time is the difference between "this is working" and
+  // "this has hung" — real analysis takes minutes on CPU, and a static
+  // spinner gives the counselor no way to tell those apart.
+  useEffect(() => {
+    if (!session || (session.status !== "UPLOADED" && session.status !== "PROCESSING")) {
+      return undefined;
+    }
+    setElapsed(elapsedLabel(session.createdAt));
+    const ticker = setInterval(() => setElapsed(elapsedLabel(session.createdAt)), 1000);
+    return () => clearInterval(ticker);
+  }, [session]);
+
+  const inProgress =
+    session && (session.status === "UPLOADED" || session.status === "PROCESSING");
+  const stalled = inProgress && elapsedMs(session.createdAt) > STALE_AFTER_MS;
+
   return (
     <div className="page">
-      <Link to="/" className="btn-link">
+      <Link to="/sessions" className="btn-link">
         ← Back to sessions
       </Link>
       <h1>Session status</h1>
 
       {error && <div className="alert alert-error">{error}</div>}
-
-      {!session && !error && <p className="muted">Loading...</p>}
+      {!session && !error && <p className="muted">Loading…</p>}
 
       {session && (
-        <div className="card status-card">
-          <div className="status-card-row">
-            <span className="field-label">Participant</span>
-            <span>{session.participantRef}</span>
-          </div>
-          <div className="status-card-row">
-            <span className="field-label">Status</span>
-            <StatusBadge status={session.status} />
+        <>
+          <div className="card status-card">
+            <div className="status-card-row">
+              <span className="field-label">Participant</span>
+              <span>
+                {session.participantId ? (
+                  <Link to={`/participants/${session.participantId}`}>
+                    {session.participantRef}
+                  </Link>
+                ) : (
+                  session.participantRef
+                )}
+              </span>
+            </div>
+            <div className="status-card-row">
+              <span className="field-label">Started</span>
+              <span>{new Date(session.createdAt).toLocaleString()}</span>
+            </div>
+            <div className="status-card-row">
+              <span className="field-label">Status</span>
+              <StatusBadge status={session.status} />
+            </div>
+
+            {inProgress && !stalled && (
+              <div className="processing-indicator">
+                <div className="spinner" />
+                <div>
+                  <p>
+                    Transcribing the recording, separating your voice from the
+                    participant&apos;s, and analysing their speech.
+                  </p>
+                  <p className="muted small">
+                    Running {elapsed} · this takes several minutes per recording on CPU.
+                    You can leave this page — processing continues, and the session will
+                    be waiting in your list.
+                  </p>
+                </div>
+              </div>
+            )}
+
+            {stalled && (
+              <div className="alert alert-warning">
+                This session has been marked as processing for {elapsed} and has almost
+                certainly stopped — analysis normally finishes within a few minutes. The
+                recording is still stored. Upload it again to retry, or ask an
+                administrator to check the analysis service.
+              </div>
+            )}
+
+            {session.status === "FAILED" && (
+              <div className="alert alert-error">
+                Processing failed for this session. The recording may be unreadable, too
+                short, or contain no detectable speech. Try uploading it again, or upload
+                a different recording.
+              </div>
+            )}
           </div>
 
-          {(session.status === "UPLOADED" || session.status === "PROCESSING") && (
-            <div className="processing-indicator">
-              <div className="spinner" />
-              <p>Analyzing interview audio and transcript. This usually takes a few seconds...</p>
-            </div>
-          )}
-
-          {session.status === "FAILED" && (
-            <div className="alert alert-error">
-              Processing failed for this session. Please try uploading again.
-            </div>
-          )}
-        </div>
+          <SessionNotes sessionId={session.id} initialNotes={session.notes} />
+        </>
       )}
     </div>
   );

@@ -1,9 +1,13 @@
 package com.project.depression.controller;
 
+import com.project.depression.dto.CounselorStatsResponse;
 import com.project.depression.dto.PageResponse;
 import com.project.depression.dto.ReportResponse;
 import com.project.depression.dto.SessionResponse;
+import com.project.depression.dto.UpdateSessionNotesRequest;
+import com.project.depression.entity.SessionStatus;
 import com.project.depression.service.SessionService;
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
@@ -45,16 +49,44 @@ public class SessionController {
     @GetMapping
     public ResponseEntity<PageResponse<SessionResponse>> listSessions(
             Authentication authentication,
+            @RequestParam(required = false) SessionStatus status,
+            @RequestParam(required = false) UUID participantId,
+            @RequestParam(required = false) String search,
+            @RequestParam(defaultValue = "createdAt") String sort,
+            @RequestParam(defaultValue = "desc") String direction,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size
     ) {
-        Pageable pageable = PageRequest.of(page, size, Sort.by(Sort.Direction.DESC, "createdAt"));
-        return ResponseEntity.ok(sessionService.listSessions(authentication.getName(), pageable));
+        // Whitelist sortable columns: this value reaches the SQL ORDER BY, so
+        // it must never be caller-controlled free text.
+        String sortField = switch (sort) {
+            case "participantRef", "status", "updatedAt" -> sort;
+            default -> "createdAt";
+        };
+        Sort.Direction sortDirection = "asc".equalsIgnoreCase(direction)
+                ? Sort.Direction.ASC : Sort.Direction.DESC;
+
+        Pageable pageable = PageRequest.of(page, Math.min(size, 100), Sort.by(sortDirection, sortField));
+        return ResponseEntity.ok(sessionService.listSessions(
+                authentication.getName(), status, participantId, search, pageable));
+    }
+
+    @GetMapping("/stats")
+    public ResponseEntity<CounselorStatsResponse> getStats(Authentication authentication) {
+        return ResponseEntity.ok(sessionService.getStats(authentication.getName()));
     }
 
     @GetMapping("/{id}")
     public ResponseEntity<SessionResponse> getSession(Authentication authentication, @PathVariable UUID id) {
         return ResponseEntity.ok(sessionService.getSession(authentication.getName(), id));
+    }
+
+    @PatchMapping("/{id}/notes")
+    public ResponseEntity<SessionResponse> updateNotes(
+            Authentication authentication, @PathVariable UUID id,
+            @Valid @RequestBody UpdateSessionNotesRequest request
+    ) {
+        return ResponseEntity.ok(sessionService.updateNotes(authentication.getName(), id, request.notes()));
     }
 
     @GetMapping("/{id}/report")

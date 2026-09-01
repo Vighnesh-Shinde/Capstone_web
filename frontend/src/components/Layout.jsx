@@ -1,5 +1,6 @@
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import Footer from "./Footer";
 
 export default function Layout({ children }) {
   const { user, logout } = useAuth();
@@ -26,7 +27,11 @@ export default function Layout({ children }) {
                 <NavLink to="/admin/dataset">Dataset</NavLink>
               </>
             ) : (
-              <NavLink to="/" end>Dashboard</NavLink>
+              <>
+                <NavLink to="/" end>Dashboard</NavLink>
+                <NavLink to="/sessions">Sessions</NavLink>
+                <NavLink to="/participants">Participants</NavLink>
+              </>
             )}
           </nav>
         )}
@@ -42,6 +47,7 @@ export default function Layout({ children }) {
         )}
       </header>
       <main className="app-main">{children}</main>
+      <Footer />
     </div>
   );
 }

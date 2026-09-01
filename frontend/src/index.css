@@ -1026,3 +1026,352 @@ input:disabled {
   color: var(--text);
   cursor: not-allowed;
 }
+
+/* --- Phase 2: counselor experience --- */
+
+.alert-info {
+  background: var(--accent-bg);
+  color: var(--accent);
+}
+
+.alert-warning {
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.alert a {
+  color: inherit;
+  font-weight: 650;
+}
+
+/* stat tiles: reuse .stat-card, laid out in a row */
+.stat-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.stat-row .stat-card {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 0;
+}
+
+/* Tiles that link somewhere read as clickable; plain ones must not. */
+a.stat-card {
+  text-decoration: none;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+a.stat-card:hover {
+  border-color: var(--accent);
+}
+
+a.stat-card.actionable {
+  border-color: var(--accent);
+  background: var(--accent-bg);
+}
+
+a.stat-card.actionable .stat-value {
+  color: var(--accent);
+}
+
+.card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 0;
+}
+
+.card-header h2 {
+  margin: 0;
+}
+
+.card-header .btn-link {
+  margin-bottom: 0;
+}
+
+/* .table-card zeroes its own padding for the table, so a header inside one
+   has to supply its own. A card-header outside a table-card must not. */
+.card:not(.table-card) > .card-header {
+  padding: 0;
+  margin-bottom: 12px;
+}
+
+.cell-strong {
+  font-weight: 600;
+  color: var(--text-h);
+}
+
+.cell-strong a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.cell-strong a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* sortable column headers */
+.th-sort {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.th-sort:hover {
+  color: var(--accent);
+}
+
+.sort-arrow {
+  font-size: 9px;
+  color: var(--accent);
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: -4px;
+}
+
+.pagination button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.tag-warning {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 650;
+  background: var(--warning-bg);
+  color: var(--warning);
+}
+
+.notes-textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font: inherit;
+  color: var(--text);
+  background: var(--surface);
+  resize: vertical;
+  min-height: 120px;
+}
+
+.notes-textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+  border-color: var(--accent);
+}
+
+/* --- trend chart --- */
+
+.chart-scroll {
+  overflow-x: auto;
+  margin: 8px 0 4px;
+}
+
+.trend-chart {
+  width: 100%;
+  min-width: 420px;
+  height: auto;
+  display: block;
+}
+
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+
+.chart-threshold {
+  stroke: var(--warning);
+  stroke-width: 1.5;
+  stroke-dasharray: 5 4;
+}
+
+.chart-axis-label {
+  fill: #667066;
+  font-size: 11px;
+}
+
+.chart-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.5;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
+/* Unjudged sessions are hollow, judged are filled: the fill encodes "a human
+   looked at this", so the eye can find the reviewed points without a legend. */
+.chart-point {
+  fill: var(--surface);
+  stroke: var(--accent);
+  stroke-width: 2.5;
+}
+
+.chart-point.judged {
+  fill: var(--accent);
+}
+
+.chart-point.judged.disagree {
+  fill: var(--warning);
+  stroke: var(--warning);
+}
+
+.chart-legend {
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+  margin: 12px 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: #667066;
+}
+
+.chart-legend li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2.5px solid var(--accent);
+  background: var(--surface);
+}
+
+.legend-dot.judged {
+  background: var(--accent);
+}
+
+.legend-dot.disagree {
+  background: var(--warning);
+  border-color: var(--warning);
+}
+
+/* --- prose pages (help, legal, crisis) --- */
+
+.prose-page {
+  max-width: 720px;
+}
+
+.prose-page .lede {
+  font-size: 17px;
+  color: var(--text-h);
+  margin-bottom: 24px;
+}
+
+.prose-page h2 {
+  margin-top: 32px;
+}
+
+.prose-page ul,
+.prose-page ol {
+  padding-left: 22px;
+  margin: 0 0 16px;
+}
+
+.prose-page li {
+  margin-bottom: 8px;
+}
+
+/* --- footer --- */
+
+.app-footer {
+  margin-top: auto;
+  padding: 20px;
+  border-top: 1px solid var(--border);
+  background: var(--surface);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.footer-disclaimer {
+  margin: 0;
+  font-size: 12px;
+  color: #667066;
+  max-width: 620px;
+}
+
+.footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  font-size: 13px;
+}
+
+.footer-links a {
+  color: var(--text);
+  text-decoration: none;
+}
+
+.footer-links a:hover {
+  color: var(--accent);
+  text-decoration: underline;
+}
+
+/* --- print: turn a report into a clean paper record --- */
+
+@media print {
+  .app-header,
+  .app-footer,
+  .btn-primary,
+  .btn-secondary,
+  .btn-link,
+  .toolbar,
+  .filter-tabs,
+  .pagination {
+    display: none !important;
+  }
+
+  .app-main {
+    padding: 0;
+  }
+
+  .card {
+    box-shadow: none;
+    border: 1px solid #ccc;
+    break-inside: avoid;
+    margin-bottom: 12px;
+  }
+
+  /* The clinical caveat must survive onto paper — a printed report detached
+     from the disclaimer is exactly how a screening score gets mistaken for a
+     diagnosis. */
+  .report-disclaimer {
+    display: block !important;
+    border: 1px solid #999;
+    padding: 8px;
+  }
+
+  a[href]::after {
+    content: "";
+  }
+
+  body {
+    background: #fff;
+  }
+}

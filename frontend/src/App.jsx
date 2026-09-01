@@ -8,9 +8,17 @@ import ResetPassword from "./pages/ResetPassword";
 import RequestCounselorAccess from "./pages/RequestCounselorAccess";
 import Profile from "./pages/Profile";
 import Dashboard from "./pages/Dashboard";
+import Sessions from "./pages/Sessions";
 import NewSession from "./pages/NewSession";
 import SessionDetail from "./pages/SessionDetail";
 import Report from "./pages/Report";
+import Participants from "./pages/Participants";
+import ParticipantDetail from "./pages/ParticipantDetail";
+import HelpGuide from "./pages/HelpGuide";
+import CrisisResources from "./pages/CrisisResources";
+import PrivacyPolicy from "./pages/PrivacyPolicy";
+import TermsOfService from "./pages/TermsOfService";
+import NotFound from "./pages/NotFound";
 import AdminHome from "./pages/admin/AdminHome";
 import AdminApplications from "./pages/admin/AdminApplications";
 import AdminApplicationDetail from "./pages/admin/AdminApplicationDetail";
@@ -37,15 +45,25 @@ export default function App() {
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/request-access" element={<RequestCounselorAccess />} />
 
+            {/* Public: a counselor must be able to reach crisis guidance and the
+                privacy notice without being signed in. */}
+            <Route path="/help" element={<HelpGuide />} />
+            <Route path="/crisis-resources" element={<CrisisResources />} />
+            <Route path="/privacy" element={<PrivacyPolicy />} />
+            <Route path="/terms" element={<TermsOfService />} />
+
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<RoleHome />} />
               <Route path="/profile" element={<Profile />} />
             </Route>
 
             <Route element={<ProtectedRoute requireRole="COUNSELOR" />}>
+              <Route path="/sessions" element={<Sessions />} />
               <Route path="/sessions/new" element={<NewSession />} />
               <Route path="/sessions/:id" element={<SessionDetail />} />
               <Route path="/sessions/:id/report" element={<Report />} />
+              <Route path="/participants" element={<Participants />} />
+              <Route path="/participants/:id" element={<ParticipantDetail />} />
             </Route>
 
             <Route element={<ProtectedRoute requireRole="ADMIN" />}>
@@ -57,7 +75,9 @@ export default function App() {
               <Route path="/admin/dataset/:id" element={<AdminDatasetDetail />} />
             </Route>
 
-            <Route path="*" element={<Navigate to="/" replace />} />
+            {/* A real 404 rather than a silent redirect home — a mistyped or
+                stale link should say so, not pretend it worked. */}
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Layout>
       </AuthProvider>

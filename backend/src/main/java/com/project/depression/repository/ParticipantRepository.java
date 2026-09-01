@@ -11,4 +11,5 @@ import java.util.UUID;
 public interface ParticipantRepository extends JpaRepository<Participant, UUID> {
     Optional<Participant> findByCounselorAndParticipantRef(User counselor, String participantRef);
     List<Participant> findByCounselorOrderByLastSessionAtDesc(User counselor);
+    long countByCounselor(User counselor);
 }
