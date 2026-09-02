@@ -121,10 +121,18 @@ public class FileStorageService {
         }
 
         String contentType = file.getContentType();
-        boolean contentTypeOk = contentType == null
-                || contentType.isBlank()
-                || "application/octet-stream".equalsIgnoreCase(contentType)
-                || allowedContentTypes.contains(contentType.toLowerCase(Locale.ROOT));
+        // Compared on the MIME type alone, with any ";codecs=..." or
+        // ";charset=..." parameter stripped. A browser's MediaRecorder reports
+        // back a codecs-qualified type ("audio/webm;codecs=opus") even when
+        // asked for the bare one, and that qualifier is genuinely part of a
+        // valid audio/webm — matching against the allowlist verbatim rejected
+        // every browser-recorded clip while accepting the exact same format
+        // uploaded from a file picker, which reports the bare type.
+        String mimeType = contentType == null ? null : contentType.split(";", 2)[0].trim();
+        boolean contentTypeOk = mimeType == null
+                || mimeType.isBlank()
+                || "application/octet-stream".equalsIgnoreCase(mimeType)
+                || allowedContentTypes.contains(mimeType.toLowerCase(Locale.ROOT));
         if (!contentTypeOk) {
             throw new InvalidFileException("Unsupported " + label + " content type: " + contentType);
         }
