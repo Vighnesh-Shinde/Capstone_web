@@ -11,6 +11,13 @@ public interface SessionCompanionRepository extends JpaRepository<SessionCompani
 
     List<SessionCompanion> findBySessionOrderByEnrolledAt(Session session);
 
-    /** Companions whose vector is still held for a session whose video is gone. */
-    List<SessionCompanion> findBySessionAndPurgedAtIsNull(Session session);
+    /**
+     * Companions whose vector is still held, in a fixed order.
+     *
+     * The ordering is load-bearing, not cosmetic: the ML service labels these
+     * "companion:0", "companion:1" by their position in the list it was sent,
+     * and the report maps those labels back by the same index. An unordered
+     * query would attribute the interpreter's match score to the mother.
+     */
+    List<SessionCompanion> findBySessionAndPurgedAtIsNullOrderByEnrolledAt(Session session);
 }

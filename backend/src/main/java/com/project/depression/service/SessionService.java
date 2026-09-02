@@ -99,6 +99,23 @@ public class SessionService {
         // never going to be scorable.
         String validatedLanguage = languageCatalog.requireScorable(language);
 
+        // Enforced here, not only in the browser. Recording someone, analysing
+        // that recording, and storing it are three things a participant has to
+        // agree to before any of them happen — it is the legal basis for the
+        // processing, not a form validation nicety. A client-side-only check is
+        // no check at all: anything speaking to this API directly could create
+        // a session with all three unticked, and the resulting recording would
+        // be indistinguishable from a consented one.
+        //
+        // Research reuse is deliberately NOT required. It is optional by
+        // design, and declining it must not block the participant's own
+        // screening.
+        if (!consentRecording || !consentAiAnalysis || !consentStorage) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                    "The participant must consent to recording, AI analysis and storage "
+                            + "before a session can be created.");
+        }
+
         Participant participant = participantService.findOrCreate(counselor, participantRef);
 
         Session session = Session.builder()
@@ -291,7 +308,7 @@ public class SessionService {
     private List<SessionCompanionResponse> companionResponses(Session session) {
         return companionRepository.findBySessionOrderByEnrolledAt(session).stream()
                 .map(c -> new SessionCompanionResponse(
-                        c.getId(), c.getRoleLabel(), c.isConsentGiven(),
+                        c.getId(), c.getRoleLabel(), c.getDiarizedLabel(), c.isConsentGiven(),
                         c.getEnrolledAt(), c.getPurgedAt() != null))
                 .toList();
     }
@@ -315,6 +332,8 @@ public class SessionService {
                 session.getFailureReason(),
                 session.getSpeakerAttribution() == null
                         ? null : session.getSpeakerAttribution().name(),
+                session.getParticipantSpeaker(),
+                session.getCounselorSpeaker(),
                 session.getSpeakerSimilarities(),
                 companions,
                 session.isConsentRecording(),

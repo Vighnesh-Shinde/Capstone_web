@@ -122,7 +122,13 @@ def enroll_voice(request: EnrollVoiceRequest) -> EnrollVoiceResponse:
 @app.post("/process", response_model=ProcessResponse)
 def process(request: ProcessRequest) -> ProcessResponse:
     if not USE_REAL_MODELS:
-        return run_inference(request.session_id, request.video_path)
+        # The companion count is taken from the request so the mock's speaker
+        # panel reflects who the counselor actually said was in the room.
+        return run_inference(
+            request.session_id,
+            request.video_path,
+            len(request.companion_embeddings or []),
+        )
 
     from app.languages import LanguageNotScorable
     from app.real.media_pipeline import SpeakerResolutionError
@@ -139,12 +145,22 @@ def process(request: ProcessRequest) -> ProcessResponse:
         # 422, like the language refusal: the service is healthy and the request
         # was well formed. The pipeline declined to guess whose voice to score,
         # and the reason is written for the counselor to act on.
-        raise HTTPException(status_code=422, detail=str(e))
+        #
+        # The detail is a structured object rather than a bare string so the
+        # backend can tell the two kinds of refusal apart without matching on
+        # English prose — they end the session in different states.
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "SPEAKER_UNRESOLVED", "message": str(e)},
+        )
     except LanguageNotScorable as e:
         # 422, not 500: the request was well formed and the service is healthy.
         # This is a refusal with a reason, and the reason is worth showing the
         # counselor verbatim rather than collapsing into "processing failed".
-        raise HTTPException(status_code=422, detail=str(e))
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "LANGUAGE_NOT_SCORABLE", "message": str(e)},
+        )
     except NotImplementedError as e:
         # Feature extraction stubs not filled in yet — see PENDING_FROM_FRIEND.md.
         # Mapped to 503 (not 500): this is a known, temporary "not ready" state,

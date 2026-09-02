@@ -179,6 +179,16 @@ One deliberate difference: the interviewer is labelled `Counselor`, not
 these rooms. Training code that keeps only `speaker == "Participant"` — which
 is how the honest text model is defined — is unaffected.
 
+## Screenshots
+
+`screenshots/` holds a capture of every screen in the platform, plus a mobile
+set, with a README explaining what is shown and — importantly — that the data
+in them is fictional and the predictions come from the mock pipeline.
+
+`node screenshots/capture.js` regenerates them. It drives the real app in a
+real browser, so the images stay honest about what the product looks like
+rather than drifting from it.
+
 ## Roles: ADMIN and COUNSELOR
 
 There is no self-registration. A prospective counselor submits a **Request

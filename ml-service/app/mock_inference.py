@@ -24,7 +24,41 @@ def _simulate_processing_delay() -> None:
     time.sleep(random.uniform(1.0, 3.0))
 
 
-def run_inference(session_id: str, video_path: str) -> ProcessResponse:
+def _mock_speaker_attribution(companion_count: int):
+    """
+    Plausible speaker-identification output, so the report's "Who was analysed"
+    panel can be exercised without the real models.
+
+    The numbers are shaped like the real thing — a known speaker scores high
+    against their own enrolled voice and near zero against everyone else's,
+    while the participant, who is enrolled nowhere, scores low against all of
+    them. That is what makes the panel readable in mock mode; the real
+    similarities come from cosine distance between actual embeddings.
+    """
+    participant = "SPEAKER_00"
+    counselor = "SPEAKER_01"
+    companions = [f"SPEAKER_{i + 2:02d}" for i in range(companion_count)]
+
+    roles = ["counselor"] + [f"companion:{i}" for i in range(companion_count)]
+    similarities = {}
+    for label in [participant, counselor, *companions]:
+        own = "counselor" if label == counselor else (
+            f"companion:{companions.index(label)}" if label in companions else None
+        )
+        similarities[label] = {
+            role: round(random.uniform(0.72, 0.88) if role == own
+                        else random.uniform(-0.05, 0.22), 4)
+            for role in roles
+        }
+
+    return participant, counselor, companions, similarities
+
+
+def run_inference(
+    session_id: str,
+    video_path: str,
+    companion_count: int = 0,
+) -> ProcessResponse:
     """
     Runs the full mock pipeline: audio/text/video stages, then fusion.
     No training happens here or anywhere in this service — inference only.
@@ -36,6 +70,8 @@ def run_inference(session_id: str, video_path: str) -> ProcessResponse:
     video_output = run_video_pipeline(video_path)
 
     fusion_result = fuse(audio_output, text_output, video_output)
+
+    participant, counselor, companions, similarities = _mock_speaker_attribution(companion_count)
 
     return ProcessResponse(
         prediction=fusion_result.prediction,
@@ -50,4 +86,8 @@ def run_inference(session_id: str, video_path: str) -> ProcessResponse:
             for item in fusion_result.explanation
         ],
         modality_contributions=fusion_result.modality_contributions,
+        participant_speaker=participant,
+        counselor_speaker=counselor,
+        companion_speakers=companions,
+        speaker_similarities=similarities,
     )

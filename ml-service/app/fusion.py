@@ -20,7 +20,17 @@ from app.modalities.audio import AudioOutput
 from app.modalities.text import TextOutput
 from app.modalities.video import VideoOutput
 
-MOCK_FUSION_WEIGHTS = {"audio": 0.4, "text": 0.35, "video": 0.25}
+# Video is zero, matching the real pipeline rather than contradicting it.
+#
+# The research project's own evaluation found that including video made the
+# fused result WORSE, so real_inference.py always reports video at 0.0 and the
+# report renders it as "Not used — excluded from this model". A mock that
+# instead shows video contributing a quarter of the decision exercises a state
+# production can never reach, hides the state it always reaches, and — worst —
+# leaves anyone reading a demo screenshot believing video analysis is part of
+# the product. The mock's job is to stand in for the real pipeline, not to
+# disagree with it.
+MOCK_FUSION_WEIGHTS = {"audio": 0.55, "text": 0.45, "video": 0.0}
 
 
 @dataclass

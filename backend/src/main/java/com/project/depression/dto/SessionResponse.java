@@ -25,6 +25,11 @@ public record SessionResponse(
         // How the speakers were told apart, and the evidence for it. Shown on
         // the report because this decided whose speech the model read.
         String speakerAttribution,
+        // Which diarized cluster was the participant, and which was the
+        // counselor. The report names them beside the match scores, so a
+        // counselor can check the analysis read the right person's voice.
+        String participantSpeaker,
+        String counselorSpeaker,
         java.util.Map<String, java.util.Map<String, Double>> speakerSimilarities,
         java.util.List<SessionCompanionResponse> companions,
         // The consent record captured at upload. Surfaced so a counselor can

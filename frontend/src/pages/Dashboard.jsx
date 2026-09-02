@@ -5,8 +5,26 @@ import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ResultTag from "../components/ResultTag";
 
-function firstName(name) {
-  return (name || "").trim().split(/\s+/)[0] || "there";
+/**
+ * A greeting name, skipping any honorific.
+ *
+ * Taking the first word alone greets "Dr. Meera Joshi" as "Dr." — and titles
+ * are the norm for clinicians, so the naive version is wrong for most of the
+ * people this page is for. A title on its own is also kept with the surname
+ * ("Dr. Joshi") rather than dropped, because that is how a colleague would
+ * actually address them.
+ */
+const TITLES = new Set(["dr", "dr.", "prof", "prof.", "mr", "mr.", "mrs", "mrs.", "ms", "ms.", "mx", "mx."]);
+
+function greetingName(name) {
+  const parts = (name || "").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "there";
+
+  if (TITLES.has(parts[0].toLowerCase()) && parts.length > 1) {
+    // "Dr. Meera Joshi" -> "Dr. Joshi"; "Dr. Meera" -> "Dr. Meera".
+    return `${parts[0]} ${parts[parts.length - 1]}`;
+  }
+  return parts[0];
 }
 
 export default function Dashboard() {
@@ -45,7 +63,7 @@ export default function Dashboard() {
     <div className="page">
       <header className="page-header">
         <div>
-          <h1>Welcome back, {firstName(user?.name)}</h1>
+          <h1>Welcome back, {greetingName(user?.name)}</h1>
           <p className="muted">Here&apos;s where things stand.</p>
         </div>
         <Link to="/sessions/new" className="btn-primary">

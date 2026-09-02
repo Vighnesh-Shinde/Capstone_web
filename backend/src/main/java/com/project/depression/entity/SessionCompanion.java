@@ -69,6 +69,16 @@ public class SessionCompanion {
     @Column(name = "consent_recorded_at")
     private Instant consentRecordedAt;
 
+    /**
+     * Which diarized cluster in the session audio turned out to be them.
+     *
+     * Filled in after processing. Without it the report can say a companion was
+     * present but not which voice they were, so their row in the match-score
+     * table would read "Excluded" with no explanation of what it was excluded as.
+     */
+    @Column(name = "diarized_label", length = 50)
+    private String diarizedLabel;
+
     @Column(name = "enrolled_at", nullable = false)
     private Instant enrolledAt;
 

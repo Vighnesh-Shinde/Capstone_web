@@ -124,6 +124,17 @@ def extract_voiceprint(wav_path: str) -> Voiceprint:
 
     labels, embeddings, turns = diarize_with_embeddings(wav_path)
 
+    if embeddings is None:
+        # Guarded rather than assumed: without embeddings the next line would
+        # fail with a TypeError about NoneType subscripting, which tells the
+        # person recording nothing they can act on and the operator nothing
+        # about the actual cause.
+        raise EnrollmentError(
+            "This deployment's diarization pipeline does not return speaker embeddings, "
+            "so voices cannot be enrolled. This is a server configuration problem, not "
+            "a problem with your recording — please contact your administrator."
+        )
+
     if not labels:
         raise EnrollmentError(
             "No speech was detected in this recording. Check that the microphone "

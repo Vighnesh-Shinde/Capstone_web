@@ -13,6 +13,8 @@ import java.util.UUID;
 public record SessionCompanionResponse(
         UUID id,
         String roleLabel,
+        /** Which voice in the recording they turned out to be; null before processing. */
+        String diarizedLabel,
         boolean consentGiven,
         Instant enrolledAt,
         /** True once the vector has been dropped with the session's video. */

@@ -19,6 +19,11 @@ export default function VoiceRecorder({ onRecorded, disabled = false }) {
   const recorderRef = useRef(null);
   const chunksRef = useRef([]);
   const timerRef = useRef(null);
+  // Mirrors the `seconds` state. onstop fires from a closure created when
+  // recording started, where the state variable is still 0 — a ref is the only
+  // value that reads correctly at that point. Without it every caller is told
+  // the recording was zero seconds long.
+  const secondsRef = useRef(0);
 
   const [recording, setRecording] = useState(false);
   const [seconds, setSeconds] = useState(0);
@@ -57,7 +62,7 @@ export default function VoiceRecorder({ onRecorded, disabled = false }) {
         const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
         const url = URL.createObjectURL(blob);
         setBlobUrl(url);
-        onRecorded(new File([blob], `voice.${extension}`, { type }), seconds);
+        onRecorded(new File([blob], `voice.${extension}`, { type }), secondsRef.current);
 
         streamRef.current?.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
@@ -67,7 +72,11 @@ export default function VoiceRecorder({ onRecorded, disabled = false }) {
       recorder.start();
       setRecording(true);
       setSeconds(0);
-      timerRef.current = setInterval(() => setSeconds((s) => s + 1), 1000);
+      secondsRef.current = 0;
+      timerRef.current = setInterval(() => {
+        secondsRef.current += 1;
+        setSeconds(secondsRef.current);
+      }, 1000);
     } catch {
       setError(
         "Could not access the microphone. Allow microphone access in your browser " +
@@ -86,6 +95,7 @@ export default function VoiceRecorder({ onRecorded, disabled = false }) {
     if (blobUrl) URL.revokeObjectURL(blobUrl);
     setBlobUrl(null);
     setSeconds(0);
+    secondsRef.current = 0;
     onRecorded(null, 0);
   }
 

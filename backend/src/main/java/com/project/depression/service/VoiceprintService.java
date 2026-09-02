@@ -222,9 +222,31 @@ public class VoiceprintService {
 
     @Transactional(readOnly = true)
     public List<List<Double>> companionEmbeddings(Session session) {
-        return companionRepository.findBySessionAndPurgedAtIsNull(session).stream()
+        return companionRepository.findBySessionAndPurgedAtIsNullOrderByEnrolledAt(session).stream()
                 .map(SessionCompanion::getEmbedding)
                 .toList();
+    }
+
+    /**
+     * Record which diarized cluster each companion turned out to be.
+     *
+     * The ML service returns these in the same order the embeddings were sent,
+     * which is why that fetch is explicitly ordered. A shorter list than
+     * expected is tolerated rather than fatal — the report degrades to "present
+     * but unmatched", which is worse than complete but far better than losing a
+     * finished analysis over a labelling detail.
+     */
+    @Transactional
+    public void recordCompanionLabels(Session session, List<String> diarizedLabels) {
+        if (diarizedLabels == null || diarizedLabels.isEmpty()) {
+            return;
+        }
+        List<SessionCompanion> companions =
+                companionRepository.findBySessionAndPurgedAtIsNullOrderByEnrolledAt(session);
+        for (int i = 0; i < companions.size() && i < diarizedLabels.size(); i++) {
+            companions.get(i).setDiarizedLabel(diarizedLabels.get(i));
+        }
+        companionRepository.saveAll(companions);
     }
 
     /**
@@ -236,7 +258,8 @@ public class VoiceprintService {
      */
     @Transactional
     public int purgeCompanionEmbeddings(Session session) {
-        List<SessionCompanion> live = companionRepository.findBySessionAndPurgedAtIsNull(session);
+        List<SessionCompanion> live =
+                companionRepository.findBySessionAndPurgedAtIsNullOrderByEnrolledAt(session);
         for (SessionCompanion companion : live) {
             companion.setEmbedding(List.of());
             companion.setPurgedAt(Instant.now());

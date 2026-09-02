@@ -92,6 +92,7 @@ public class SessionProcessingService {
             session.setParticipantSpeaker(mlResponse.participant_speaker());
             session.setCounselorSpeaker(mlResponse.counselor_speaker());
             session.setSpeakerAttribution(SpeakerAttribution.VOICEPRINT);
+            voiceprintService.recordCompanionLabels(session, mlResponse.companion_speakers());
             session.setFailureReason(null);
             storeDaicTranscript(session, mlResponse.daic_transcript());
             Map<String, Double> modalityContributions = mlResponse.modality_contributions();
@@ -124,15 +125,23 @@ public class SessionProcessingService {
 
             datasetEligibilityService.evaluate(session);
         } catch (HttpClientErrorException.UnprocessableEntity e) {
-            // The ML service refused to score rather than failing: either the
-            // language has no models, or the voices could not be matched to
-            // exactly one unidentified participant. Both are recoverable by the
-            // counselor and neither is a malfunction, so the reason is kept and
-            // shown instead of collapsing into a generic failure.
-            String reason = extractDetail(e);
-            log.warn("Session {} was not scored: {}", sessionId, reason);
-            session.setStatus(SessionStatus.SPEAKER_UNVERIFIED);
-            session.setFailureReason(reason);
+            // The ML service refused to score rather than failing. Two distinct
+            // refusals arrive this way and they are NOT the same thing: the
+            // voices could not be resolved, or the session's language has no
+            // trained models. Only the first is a speaker problem, so the code
+            // is read from the response rather than guessed at from the prose.
+            Refusal refusal = extractRefusal(e);
+            log.warn("Session {} was not scored ({}): {}",
+                    sessionId, refusal.code(), refusal.message());
+
+            session.setStatus(
+                    "SPEAKER_UNRESOLVED".equals(refusal.code())
+                            ? SessionStatus.SPEAKER_UNVERIFIED
+                            // A language with no models is not a speaker
+                            // problem, and labelling it one would send the
+                            // counselor looking for a third person in the room.
+                            : SessionStatus.FAILED);
+            session.setFailureReason(refusal.message());
             sessionRepository.save(session);
         } catch (Exception e) {
             log.error("ML processing failed for session {}", sessionId, e);
@@ -144,25 +153,35 @@ public class SessionProcessingService {
         }
     }
 
+    /** A refusal from the ML service: why, in a form code can branch on. */
+    private record Refusal(String code, String message) {}
+
     /**
-     * Pull the ML service's message out of its JSON error body.
+     * Pull the ML service's refusal out of its JSON error body.
      *
-     * FastAPI wraps it as {"detail": "..."} and that text was written for the
-     * counselor to read. Falling back to the raw body rather than a generic
-     * string keeps some information even if the shape ever changes.
+     * FastAPI wraps the detail as {"detail": {...}}, and the message inside was
+     * written for the counselor to read. Older responses used a bare string
+     * there, so both shapes are accepted; an unrecognised body degrades to the
+     * raw text rather than a generic apology, because some information beats
+     * none when something unexpected has happened.
      */
-    private static String extractDetail(HttpClientErrorException e) {
+    private static Refusal extractRefusal(HttpClientErrorException e) {
+        String raw = e.getResponseBodyAsString();
         try {
-            JsonNode body = new ObjectMapper().readTree(e.getResponseBodyAsString());
-            JsonNode detail = body.get("detail");
+            JsonNode detail = new ObjectMapper().readTree(raw).get("detail");
+            if (detail != null && detail.isObject()) {
+                return new Refusal(
+                        detail.path("code").asText("UNKNOWN"),
+                        detail.path("message").asText("The session could not be scored."));
+            }
             if (detail != null && detail.isTextual()) {
-                return detail.asText();
+                return new Refusal("UNKNOWN", detail.asText());
             }
         } catch (Exception ignored) {
             // Fall through to the raw body below.
         }
-        String raw = e.getResponseBodyAsString();
-        return raw == null || raw.isBlank() ? "The session could not be scored." : raw;
+        return new Refusal("UNKNOWN",
+                raw == null || raw.isBlank() ? "The session could not be scored." : raw);
     }
 
     /**

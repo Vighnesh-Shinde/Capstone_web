@@ -698,6 +698,7 @@ tr.row-active, tr.row-active:hover { background: var(--violet-soft); }
 .status-completed, .status-approved, .status-active,
 .status-failed, .status-rejected, .status-suspended,
 .status-under-review, .status-awaiting-judgment, .status-excluded-no-consent,
+.status-speaker_unverified,
 .role-tag, .tag-active, .tag-warning {
   display: inline-block;
   padding: 4px 11px;
@@ -711,8 +712,13 @@ tr.row-active, tr.row-active:hover { background: var(--violet-soft); }
   background: var(--ok-bg); color: var(--ok);
 }
 
+/* Amber, not red: a session whose speakers could not be verified was
+   transcribed successfully and is usually fine — it needs attention, not
+   alarm. Grouping it with FAILED would tell the counselor to report a bug
+   when what they need to do is check who was in the room. */
 .status-pending, .status-review, .status-uploaded, .status-processing,
-.status-under-review, .status-awaiting-judgment, .tag-warning {
+.status-under-review, .status-awaiting-judgment, .status-speaker_unverified,
+.tag-warning {
   background: var(--warn-bg); color: var(--warn);
 }
 
@@ -1673,7 +1679,26 @@ select option:disabled { color: var(--text-mute); }
 .table-scroll { overflow-x: auto; }
 .table-scroll table { min-width: 460px; }
 
-.status-badge.status-speaker_unverified {
-  background: var(--warn-bg);
-  color: var(--warn);
+/* ============================================================
+   Narrow screens
+   ============================================================ */
+
+@media (max-width: 720px) {
+  /* A pill radius is only right while the control is one row tall. Once the
+     filters wrap onto three lines, a 999px radius bulges the container into a
+     lozenge with the corner tabs poking out of it. Below this width it always
+     wraps, so it takes an ordinary card radius instead. */
+  .filter-tabs {
+    display: flex;
+    border-radius: var(--r);
+  }
+
+  /* Tables inside a scrolling card: keep cells on one line so the row height
+     stays readable and the card scrolls sideways, which is what its
+     overflow-x is there for. Wrapping instead produced three-line date cells
+     and a table taller than the screen. */
+  .table-card td, .table-card th { white-space: nowrap; }
+  /* The exception — a free-text column has to be allowed to wrap, or it
+     becomes an unbounded horizontal scroll nobody can reach the end of. */
+  .table-card td.cell-wrap { white-space: normal; min-width: 220px; }
 }

@@ -15,6 +15,10 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
+    // 401 only: the server now distinguishes "I don't know who you are" from
+    // "I know, and you may not". Redirecting on 403 as well would bounce a
+    // signed-in counselor to the login page for clicking something meant for
+    // admins, which reads as being logged out for no reason.
     if (error.response?.status === 401) {
       localStorage.removeItem("token");
       localStorage.removeItem("user");
