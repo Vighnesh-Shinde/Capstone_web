@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { listSessions } from "../api/sessions";
 import StatusBadge from "../components/StatusBadge";
+import ResultTag from "../components/ResultTag";
 
 const STATUS_FILTERS = [
   { label: "All", value: "" },
@@ -170,13 +171,7 @@ export default function Sessions() {
                     </td>
                     <td>{new Date(session.createdAt).toLocaleString()}</td>
                     <td><StatusBadge status={session.status} /></td>
-                    <td>
-                      {session.prediction
-                        ? session.prediction === "depressed"
-                          ? "Elevated indicators"
-                          : "No elevated indicators"
-                        : "—"}
-                    </td>
+                    <td><ResultTag prediction={session.prediction} /></td>
                     <td>
                       {typeof session.confidenceScore === "number"
                         ? `${(session.confidenceScore * 100).toFixed(0)}%`

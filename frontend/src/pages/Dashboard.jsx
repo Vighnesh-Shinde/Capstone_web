@@ -3,6 +3,7 @@ import { Link } from "react-router-dom";
 import { getSessionStats, listSessions } from "../api/sessions";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
+import ResultTag from "../components/ResultTag";
 
 function firstName(name) {
   return (name || "").trim().split(/\s+/)[0] || "there";
@@ -124,13 +125,7 @@ export default function Dashboard() {
                     <td className="cell-strong">{session.participantRef}</td>
                     <td>{new Date(session.createdAt).toLocaleDateString()}</td>
                     <td><StatusBadge status={session.status} /></td>
-                    <td>
-                      {session.prediction
-                        ? session.prediction === "depressed"
-                          ? "Elevated indicators"
-                          : "No elevated indicators"
-                        : "—"}
-                    </td>
+                    <td><ResultTag prediction={session.prediction} /></td>
                     <td>
                       <Link to={`/sessions/${session.id}`} className="btn-link">
                         View

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
+import AuthAside from "../components/AuthAside";
 
 export default function Login() {
   const { login } = useAuth();
@@ -25,10 +26,13 @@ export default function Login() {
   }
 
   return (
-    <div className="centered-page">
+    <div className="auth-split">
+      <AuthAside />
+
+      <div className="auth-panel">
       <form className="card auth-card" onSubmit={handleSubmit}>
-        <h1>Sign in</h1>
-        <p className="muted">Review and upload participant interviews.</p>
+        <h1>Welcome back</h1>
+        <p className="muted">Sign in to review and upload participant interviews.</p>
 
         <label className="field-label" htmlFor="identifier">
           Username or email
@@ -67,6 +71,7 @@ export default function Login() {
           Not approved yet? <Link to="/request-access">Request counselor access</Link>
         </p>
       </form>
+      </div>
     </div>
   );
 }

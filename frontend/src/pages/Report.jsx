@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { getReport, getSession } from "../api/sessions";
 import ExplanationFactorBar from "../components/ExplanationFactorBar";
 import ModalityContributions from "../components/ModalityContributions";
+import ConfidenceRing from "../components/ConfidenceRing";
 import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
 import SessionNotes from "../components/SessionNotes";
@@ -67,28 +68,37 @@ export default function Report() {
       {report && (
         <>
           <div className="card report-summary">
-            {session && (
-              <div className="status-card-row">
-                <span className="field-label">Participant</span>
-                <span>{session.participantRef}</span>
+            <div className="verdict">
+              <div className="verdict-text">
+                {session && (
+                  <span className="verdict-participant">{session.participantRef}</span>
+                )}
+                <span className={`verdict-headline ${report.prediction}`}>
+                  {report.prediction === "depressed"
+                    ? "Elevated indicators"
+                    : "No elevated indicators"}
+                </span>
+                <span className="verdict-sub">
+                  {report.prediction === "depressed"
+                    ? "Recommend follow-up. Weigh this against your own assessment."
+                    : "The model found no elevated indicators in this session."}
+                </span>
+                <span className="verdict-meta">
+                  Generated {new Date(report.createdAt).toLocaleString()}
+                </span>
               </div>
-            )}
-            <div className={`prediction-banner ${report.prediction}`}>
-              <span className="prediction-label">
-                {report.prediction === "depressed" ? "Elevated indicators — recommend follow-up" : "No elevated indicators detected"}
-              </span>
-              <span className="confidence-value">
-                {Math.round(report.confidenceScore * 100)}% confidence
-              </span>
+              <ConfidenceRing
+                value={report.confidenceScore}
+                prediction={report.prediction}
+              />
             </div>
-            <p className="muted small">
-              Generated {new Date(report.createdAt).toLocaleString()}
-            </p>
+
             <div className="alert alert-warning report-disclaimer">
               This is an AI screening-support indicator, not a diagnosis. It is
-              wrong in roughly 1 of every 4 cases. A qualified clinician should
-              review this result alongside their own professional judgment
-              before any decision is made.
+              wrong in roughly 1 of every 4 cases, and it does not measure
+              severity — a higher percentage means the model is more confident,
+              not that the person is more unwell. A qualified clinician should
+              review this alongside their own professional judgment.
             </div>
           </div>
 
