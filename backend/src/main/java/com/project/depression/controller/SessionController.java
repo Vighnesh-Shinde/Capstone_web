@@ -3,6 +3,7 @@ package com.project.depression.controller;
 import com.project.depression.dto.CounselorStatsResponse;
 import com.project.depression.dto.PageResponse;
 import com.project.depression.dto.ReportResponse;
+import com.project.depression.dto.CompanionEnrollment;
 import com.project.depression.dto.SessionResponse;
 import com.project.depression.dto.UpdateSessionNotesRequest;
 import com.project.depression.entity.SessionStatus;
@@ -17,6 +18,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -38,13 +41,43 @@ public class SessionController {
             @RequestParam(value = "consent_recording", defaultValue = "false") boolean consentRecording,
             @RequestParam(value = "consent_ai_analysis", defaultValue = "false") boolean consentAiAnalysis,
             @RequestParam(value = "consent_storage", defaultValue = "false") boolean consentStorage,
-            @RequestParam(value = "consent_research_reuse", defaultValue = "false") boolean consentResearchReuse
+            @RequestParam(value = "consent_research_reuse", defaultValue = "false") boolean consentResearchReuse,
+
+            // Anyone else who was in the room — an interpreter, a parent. Each
+            // reads the enrollment passage before the interview so their speech
+            // can be separated out rather than counted as the participant's.
+            // Parallel arrays aligned by index, as multipart requires.
+            @RequestParam(value = "companion_audio", required = false) List<MultipartFile> companionAudio,
+            @RequestParam(value = "companion_labels", required = false) List<String> companionLabels,
+            @RequestParam(value = "companion_consents", required = false) List<String> companionConsents
     ) {
+        List<CompanionEnrollment> companions = new ArrayList<>();
+        if (companionAudio != null) {
+            for (int i = 0; i < companionAudio.size(); i++) {
+                companions.add(new CompanionEnrollment(
+                        companionAudio.get(i),
+                        at(companionLabels, i),
+                        // Absent means absent, never "assumed yes": this is a
+                        // third party agreeing to have their voice recorded.
+                        Boolean.parseBoolean(at(companionConsents, i))
+                ));
+            }
+        }
+
         SessionResponse response = sessionService.createSession(
                 authentication.getName(), participantRef, video, language,
-                consentRecording, consentAiAnalysis, consentStorage, consentResearchReuse
+                consentRecording, consentAiAnalysis, consentStorage, consentResearchReuse,
+                companions
         );
         return ResponseEntity.status(201).body(response);
+    }
+
+    private static String at(List<String> list, int index) {
+        if (list == null || index >= list.size()) {
+            return null;
+        }
+        String value = list.get(index);
+        return value == null || value.isBlank() ? null : value.trim();
     }
 
     @GetMapping

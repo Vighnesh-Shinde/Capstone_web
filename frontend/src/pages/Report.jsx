@@ -6,6 +6,7 @@ import ModalityContributions from "../components/ModalityContributions";
 import ConfidenceRing from "../components/ConfidenceRing";
 import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
+import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
 import SessionNotes from "../components/SessionNotes";
 
 export default function Report() {
@@ -140,6 +141,11 @@ export default function Report() {
           {/* Shown here rather than only on SessionDetail: a completed session
               redirects straight to this page, so the consent record would
               otherwise be somewhere the counselor never lands. */}
+          {/* Above the consent record deliberately: "was this the right
+              person's voice?" has to be answerable before anything else on
+              the page means much. */}
+          <SpeakerAttributionPanel session={session} />
+
           <ConsentRecord session={session} />
 
           <SessionNotes sessionId={id} initialNotes={session?.notes} />

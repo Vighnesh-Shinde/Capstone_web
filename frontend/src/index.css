@@ -1601,3 +1601,79 @@ code {
 /* An option the browser greys out still needs to read as
    deliberate rather than broken. */
 select option:disabled { color: var(--text-mute); }
+
+/* ============================================================
+   Voice enrollment
+   ============================================================ */
+
+/* The passage a counselor reads aloud. Sized up and loosely
+   spaced because it is read from a screen at arm's length while
+   speaking, which is not how any other text on this site is
+   used — normal body size causes people to lean in and trail off. */
+.enrollment-passage {
+  margin: 0 0 20px;
+  padding: 20px 22px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--violet);
+  border-radius: var(--r);
+  background: var(--surface-sunk);
+  color: var(--text-h);
+  font-size: 17px;
+  line-height: 1.85;
+}
+
+.voice-recorder { margin-bottom: 18px; }
+
+.voice-recorder-controls {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.voice-recorder-playback audio {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  margin: 10px 0;
+}
+
+.recording-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--danger);
+  font-size: 13.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.recording-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--danger);
+  animation: recording-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes recording-pulse {
+  0%, 100% { opacity: 1; }
+  50%      { opacity: .25; }
+}
+
+/* Someone recording a passage does not need a blinking dot to know
+   they are recording — the timer says so — and a pulse can be
+   actively unpleasant for people with vestibular sensitivity. */
+@media (prefers-reduced-motion: reduce) {
+  .recording-dot { animation: none; }
+}
+
+/* The match-score table can outgrow its card once several people
+   are enrolled; it scrolls itself rather than the whole page. */
+.table-scroll { overflow-x: auto; }
+.table-scroll table { min-width: 460px; }
+
+.status-badge.status-speaker_unverified {
+  background: var(--warn-bg);
+  color: var(--warn);
+}

@@ -87,6 +87,49 @@ public class Session {
     @Column(name = "consent_version")
     private String consentVersion;
 
+    /**
+     * Which diarized cluster was judged to be whom, and the cosine similarity
+     * behind each judgement, keyed by diarized label.
+     *
+     * Persisted because this is the decision that determined whose mental
+     * health was scored. The audio is deleted on a retention schedule; the
+     * reasoning that pointed the model at one person rather than another has
+     * to outlive it, or a report becomes unauditable.
+     */
+    @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
+    @Column(name = "speaker_similarities", columnDefinition = "jsonb")
+    private java.util.Map<String, java.util.Map<String, Double>> speakerSimilarities;
+
+    @Column(name = "participant_speaker", length = 50)
+    private String participantSpeaker;
+
+    @Column(name = "counselor_speaker", length = 50)
+    private String counselorSpeaker;
+
+    /** The conversation in DAIC-WOZ format, for the research export. */
+    @Column(name = "daic_transcript_path", length = 500)
+    private String daicTranscriptPath;
+
+    /**
+     * Why this session produced no report.
+     *
+     * Previously a failure left a status and a line in the server log, so a
+     * counselor saw "Failed" with no way to tell whether to re-upload,
+     * re-record, or call somebody. Most failures here are recoverable by the
+     * counselor, and only if they are told what happened.
+     */
+    @Column(name = "failure_reason", length = 1000)
+    private String failureReason;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "speaker_attribution", nullable = false, length = 30)
+    @Builder.Default
+    private SpeakerAttribution speakerAttribution = SpeakerAttribution.VOICEPRINT;
+
+    @OneToMany(mappedBy = "session", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    @Builder.Default
+    private java.util.List<SessionCompanion> companions = new java.util.ArrayList<>();
+
     @Column(name = "consent_recorded_at")
     private Instant consentRecordedAt;
 

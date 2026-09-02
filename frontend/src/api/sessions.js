@@ -43,11 +43,23 @@ export async function updateSessionNotes(id, notes) {
   return data;
 }
 
-export async function createSession(participantRef, videoFile, consent, language) {
+export async function createSession(participantRef, videoFile, consent, language, companions) {
   const formData = new FormData();
   formData.append("participant_ref", participantRef);
   formData.append("video", videoFile);
   formData.append("language", language || "en");
+
+  // Everyone else who was in the room, each with the recording that lets their
+  // voice be separated out. Parallel arrays aligned by index, appended once
+  // per companion including blanks — skipping an empty label would shift every
+  // later companion's metadata onto the wrong recording.
+  (companions || [])
+    .filter((c) => c.audio)
+    .forEach((c) => {
+      formData.append("companion_audio", c.audio);
+      formData.append("companion_labels", c.roleLabel || "Companion");
+      formData.append("companion_consents", String(!!c.consentGiven));
+    });
   formData.append("consent_recording", String(!!consent?.recording));
   formData.append("consent_ai_analysis", String(!!consent?.aiAnalysis));
   formData.append("consent_storage", String(!!consent?.storage));

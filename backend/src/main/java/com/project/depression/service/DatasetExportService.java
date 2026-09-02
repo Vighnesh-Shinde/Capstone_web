@@ -15,8 +15,12 @@ import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
@@ -78,6 +82,10 @@ public class DatasetExportService {
             // to finish before the next is opened. features.csv is streamed row
             // by row (it is by far the largest), while metadata is accumulated
             // in memory and written afterwards.
+            // participantRef -> transcript path on disk, written after
+            // features.csv is closed.
+            Map<String, String> transcriptsToExport = new LinkedHashMap<>();
+
             zip.putNextEntry(new ZipEntry("features.csv"));
             Writer featuresCsv = new OutputStreamWriter(zip, StandardCharsets.UTF_8);
 
@@ -139,6 +147,13 @@ public class DatasetExportService {
                         .append(csv(String.valueOf(session.getCreatedAt())))
                         .append('\n');
 
+                // Collected, not written yet: features.csv is a single open ZIP
+                // entry being streamed, and opening a second entry before it is
+                // closed corrupts the archive.
+                if (session.getDaicTranscriptPath() != null) {
+                    transcriptsToExport.put(session.getParticipantRef(), session.getDaicTranscriptPath());
+                }
+
                 exported++;
             }
 
@@ -148,9 +163,29 @@ public class DatasetExportService {
             featuresCsv.flush();
             zip.closeEntry();
 
+            // One TRANSCRIPT.csv per session, in the corpus's own format and
+            // naming, so a script that reads DAIC-WOZ reads these unmodified.
+            int transcriptsWritten = 0;
+            for (Map.Entry<String, String> entry : transcriptsToExport.entrySet()) {
+                try {
+                    String content = Files.readString(Path.of(entry.getValue()), StandardCharsets.UTF_8);
+                    // Sanitised because it becomes a path inside the archive: a
+                    // participant reference containing "../" would otherwise
+                    // write outside the extraction directory on unzip.
+                    String safeRef = entry.getKey().replaceAll("[^A-Za-z0-9._-]", "_");
+                    writeEntry(zip, "transcripts/" + safeRef + "_TRANSCRIPT.csv", content);
+                    transcriptsWritten++;
+                } catch (IOException e) {
+                    // A missing transcript must not fail the whole export; the
+                    // features are the dataset, the transcripts are context.
+                    log.warn("Dataset export: could not read transcript {}", entry.getValue(), e);
+                }
+            }
+
             writeEntry(zip, "metadata.csv", metadata.toString());
             writeEntry(zip, "README.txt", readme(
-                    exported, approved.size(), skippedNoFeatures, skippedNoJudgment, skippedWithdrawn));
+                    exported, approved.size(), skippedNoFeatures, skippedNoJudgment,
+                    skippedWithdrawn, transcriptsWritten));
         }
 
         auditLogService.log(admin, "DATASET_EXPORTED", "DATASET", null,
@@ -196,7 +231,8 @@ public class DatasetExportService {
         zip.closeEntry();
     }
 
-    private String readme(int exported, int approved, int noFeatures, int noJudgment, int withdrawn) {
+    private String readme(int exported, int approved, int noFeatures, int noJudgment,
+                          int withdrawn, int transcripts) {
         return """
                 Depression screening — research dataset export
                 ==============================================
@@ -204,6 +240,20 @@ public class DatasetExportService {
 
                 CONTENTS
                 --------
+                transcripts/   One <participant>_TRANSCRIPT.csv per session, in the
+                                 DAIC-WOZ corpus format: tab-separated, CRLF, with the
+                                 columns start_time, stop_time, speaker, value, and text
+                                 lowercased with punctuation stripped. A script that
+                                 reads the original corpus reads these unmodified.
+
+                                 One difference: the interviewer is labelled "Counselor",
+                                 not "Ellie". Ellie is the virtual agent used to collect
+                                 DAIC-WOZ and was never in these rooms. Training code
+                                 that keeps only speaker == "Participant" — which is how
+                                 the text model is defined — is unaffected. Anyone else
+                                 present is "Companion 1", "Companion 2", and so on;
+                                 their speech is recorded but was excluded from analysis.
+
                 features.csv   One row per session.
                                  session_id  — matches metadata.csv
                                  label       — 1 = depressed, 0 = not depressed
@@ -234,6 +284,8 @@ public class DatasetExportService {
                      the original recording).
                   %d skipped — no counselor assessment recorded, so no ground-truth label.
                   %d skipped — consent withdrawn after approval.
+                  %d DAIC-format transcripts included (sessions processed before speaker
+                    identification existed have none).
 
                 FEATURE ORDER
                 -------------
@@ -249,7 +301,8 @@ public class DatasetExportService {
                 a participant reference links back to an identifiable person in the
                 originating service. Treat this file as confidential health data: do not
                 redistribute it, and delete it when the work it was exported for is done.
-                """.formatted(Instant.now(), exported, approved, noFeatures, noJudgment, withdrawn);
+                """.formatted(Instant.now(), exported, approved, noFeatures, noJudgment,
+                        withdrawn, transcripts);
     }
 
     /** Minimal RFC4180 quoting — observations are free text and will contain commas. */

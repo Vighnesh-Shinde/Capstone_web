@@ -119,13 +119,65 @@ behavior is unchanged from the mock.
   `pydantic-core` transitively otherwise, and pydantic refuses to import if
   the two don't match exactly.
 
-### Participant identification (a documented assumption)
+### Participant identification (by enrolled voiceprint)
 
-After diarization, `media_pipeline.identify_participant_speaker()` assumes
-the participant is whichever speaker talks more in total — typical for an
-interview where the counselor asks short questions and the participant
-answers at length. Documented in that function's docstring as the one place
-to revisit if real recordings don't fit that pattern.
+The audio and text models were trained on the **participant's speech only**,
+so deciding which diarized speaker is the participant decides whose mental
+health gets scored.
+
+This used to be a heuristic: the participant is whoever talks most. That came
+from DAIC-WOZ, where the interviewer is a virtual agent asking short scripted
+questions. It does not survive a real counselling room — a severely depressed
+client answers in single words while the counselor carries the conversation,
+so the counselor becomes the longest speaker and the pipeline scores *their*
+voice and *their* words. It failed hardest on exactly the people the tool
+exists to detect, and it failed silently, producing a normal-looking report
+about the wrong person. **The heuristic has been removed.**
+
+Speakers are now identified positively:
+
+1. A counselor reads a fixed passage aloud once a month (`/voice-enrollment`).
+   The recording is turned into an embedding and **the audio is deleted** —
+   see `VoiceprintService`.
+2. If anyone else is in the room (an interpreter, a parent), they read the
+   same passage at the start of the session.
+3. At analysis time every diarized speaker is matched against those enrolled
+   voices by cosine similarity. **The participant is the one who matches
+   none of them.**
+
+If that does not resolve to exactly one unidentified voice — the counselor is
+absent from their own recording, nobody is left over, or two strangers are
+present — the session is transcribed but **not scored**, with status
+`SPEAKER_UNVERIFIED` and a reason the counselor can act on. Guessing is what
+this replaced.
+
+Two settings that need real-world validation before production use:
+
+- `VOICE_MATCH_THRESHOLD` (default `0.55`) and `VOICE_MATCH_MARGIN`
+  (default `0.06`) in `ml-service/app/real/voiceprint.py`. **These are
+  starting points, not tuned values** — they were chosen from the usual
+  operating range for speaker-verification embeddings, not measured on this
+  deployment's microphones and rooms. Too low and a participant is mistaken
+  for the counselor and dropped from their own report; too high and every
+  session refuses to score. Check them against real recordings.
+- `app.voiceprint.validity-days` (default 30) and
+  `app.voiceprint.model-id`. Changing the diarization model invalidates every
+  enrolled voiceprint, because embeddings are only comparable within one
+  model's vector space; the model id is stored on each row so that failure is
+  diagnosable rather than mysterious.
+
+### DAIC-WOZ format transcripts
+
+Every scored session also writes `TRANSCRIPT.csv` beside its video, in the
+corpus's exact format — tab-separated despite the `.csv` name, CRLF line
+endings, `start_time / stop_time / speaker / value`, text lowercased with
+punctuation stripped. They are included in the research export under
+`transcripts/`, so a script that reads DAIC-WOZ reads these unmodified.
+
+One deliberate difference: the interviewer is labelled `Counselor`, not
+`Ellie`. Ellie is the virtual agent used to collect DAIC-WOZ and was never in
+these rooms. Training code that keeps only `speaker == "Participant"` — which
+is how the honest text model is defined — is unaffected.
 
 ## Roles: ADMIN and COUNSELOR
 

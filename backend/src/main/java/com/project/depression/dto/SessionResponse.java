@@ -16,6 +16,17 @@ public record SessionResponse(
         String prediction,
         Double confidenceScore,
         String notes,
+
+        // Why this session produced no report. Previously a counselor saw
+        // "Failed" and had no way to tell whether to re-upload, re-record, or
+        // call somebody.
+        String failureReason,
+
+        // How the speakers were told apart, and the evidence for it. Shown on
+        // the report because this decided whose speech the model read.
+        String speakerAttribution,
+        java.util.Map<String, java.util.Map<String, Double>> speakerSimilarities,
+        java.util.List<SessionCompanionResponse> companions,
         // The consent record captured at upload. Surfaced so a counselor can
         // answer "what did they agree to?" without database access.
         boolean consentRecording,

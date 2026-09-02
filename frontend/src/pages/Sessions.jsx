@@ -9,6 +9,7 @@ const STATUS_FILTERS = [
   { label: "Completed", value: "COMPLETED" },
   { label: "Processing", value: "PROCESSING" },
   { label: "Uploaded", value: "UPLOADED" },
+  { label: "Speakers unverified", value: "SPEAKER_UNVERIFIED" },
   { label: "Failed", value: "FAILED" },
 ];
 

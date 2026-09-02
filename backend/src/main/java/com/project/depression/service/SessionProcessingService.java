@@ -8,6 +8,7 @@ import com.project.depression.entity.Report;
 import com.project.depression.entity.Session;
 import com.project.depression.entity.SessionFeatures;
 import com.project.depression.entity.SessionStatus;
+import com.project.depression.entity.SpeakerAttribution;
 import com.project.depression.repository.ReportRepository;
 import com.project.depression.repository.SessionFeaturesRepository;
 import com.project.depression.repository.SessionRepository;
@@ -16,7 +17,14 @@ import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.client.HttpClientErrorException;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -38,19 +46,22 @@ public class SessionProcessingService {
     private final SessionFeaturesRepository sessionFeaturesRepository;
     private final MlServiceClient mlServiceClient;
     private final DatasetEligibilityService datasetEligibilityService;
+    private final VoiceprintService voiceprintService;
 
     public SessionProcessingService(
             SessionRepository sessionRepository,
             ReportRepository reportRepository,
             SessionFeaturesRepository sessionFeaturesRepository,
             MlServiceClient mlServiceClient,
-            DatasetEligibilityService datasetEligibilityService
+            DatasetEligibilityService datasetEligibilityService,
+            VoiceprintService voiceprintService
     ) {
         this.sessionRepository = sessionRepository;
         this.reportRepository = reportRepository;
         this.sessionFeaturesRepository = sessionFeaturesRepository;
         this.mlServiceClient = mlServiceClient;
         this.datasetEligibilityService = datasetEligibilityService;
+        this.voiceprintService = voiceprintService;
     }
 
     @Async("mlProcessingExecutor")
@@ -63,7 +74,26 @@ public class SessionProcessingService {
             session.setStatus(SessionStatus.PROCESSING);
             sessionRepository.save(session);
 
-            MlProcessResponse mlResponse = mlServiceClient.process(sessionId.toString(), session.getVideoPath(), session.getLanguage());
+            // The voiceprints are read here rather than passed in, because
+            // this runs asynchronously long after the request thread is gone.
+            List<Double> counselorEmbedding = voiceprintService
+                    .requireCurrentVoiceprint(session.getCounselor())
+                    .getEmbedding();
+            List<List<Double>> companionEmbeddings = voiceprintService.companionEmbeddings(session);
+
+            MlProcessResponse mlResponse = mlServiceClient.process(
+                    sessionId.toString(), session.getVideoPath(), session.getLanguage(),
+                    counselorEmbedding, companionEmbeddings);
+
+            // Stored before the report: this is the decision that determined
+            // whose speech was analysed, and it stays useful even if report
+            // creation below then fails.
+            session.setSpeakerSimilarities(mlResponse.speaker_similarities());
+            session.setParticipantSpeaker(mlResponse.participant_speaker());
+            session.setCounselorSpeaker(mlResponse.counselor_speaker());
+            session.setSpeakerAttribution(SpeakerAttribution.VOICEPRINT);
+            session.setFailureReason(null);
+            storeDaicTranscript(session, mlResponse.daic_transcript());
             Map<String, Double> modalityContributions = mlResponse.modality_contributions();
 
             Report report = Report.builder()
@@ -93,10 +123,68 @@ public class SessionProcessingService {
             sessionRepository.save(session);
 
             datasetEligibilityService.evaluate(session);
+        } catch (HttpClientErrorException.UnprocessableEntity e) {
+            // The ML service refused to score rather than failing: either the
+            // language has no models, or the voices could not be matched to
+            // exactly one unidentified participant. Both are recoverable by the
+            // counselor and neither is a malfunction, so the reason is kept and
+            // shown instead of collapsing into a generic failure.
+            String reason = extractDetail(e);
+            log.warn("Session {} was not scored: {}", sessionId, reason);
+            session.setStatus(SessionStatus.SPEAKER_UNVERIFIED);
+            session.setFailureReason(reason);
+            sessionRepository.save(session);
         } catch (Exception e) {
             log.error("ML processing failed for session {}", sessionId, e);
             session.setStatus(SessionStatus.FAILED);
+            session.setFailureReason(
+                    "The recording could not be processed. If this keeps happening, "
+                            + "check the file plays correctly and contact your administrator.");
             sessionRepository.save(session);
+        }
+    }
+
+    /**
+     * Pull the ML service's message out of its JSON error body.
+     *
+     * FastAPI wraps it as {"detail": "..."} and that text was written for the
+     * counselor to read. Falling back to the raw body rather than a generic
+     * string keeps some information even if the shape ever changes.
+     */
+    private static String extractDetail(HttpClientErrorException e) {
+        try {
+            JsonNode body = new ObjectMapper().readTree(e.getResponseBodyAsString());
+            JsonNode detail = body.get("detail");
+            if (detail != null && detail.isTextual()) {
+                return detail.asText();
+            }
+        } catch (Exception ignored) {
+            // Fall through to the raw body below.
+        }
+        String raw = e.getResponseBodyAsString();
+        return raw == null || raw.isBlank() ? "The session could not be scored." : raw;
+    }
+
+    /**
+     * Write the DAIC-WOZ-format transcript beside the session's video.
+     *
+     * Failing to write it must not fail the session: the report is the clinical
+     * output and the transcript is a research artifact. A missing file is
+     * recoverable by re-processing; a lost report is not.
+     */
+    private void storeDaicTranscript(Session session, String content) {
+        if (content == null || content.isBlank()) {
+            return;
+        }
+        try {
+            Path videoPath = Path.of(session.getVideoPath());
+            Path target = videoPath.getParent().resolve("TRANSCRIPT.csv");
+            // ISO-8859-1 would mangle any non-ASCII the transcriber produced;
+            // the corpus is ASCII but a Hindi session recorded here will not be.
+            Files.writeString(target, content, StandardCharsets.UTF_8);
+            session.setDaicTranscriptPath(target.toString());
+        } catch (Exception e) {
+            log.error("Could not write the DAIC-format transcript for session {}", session.getId(), e);
         }
     }
 

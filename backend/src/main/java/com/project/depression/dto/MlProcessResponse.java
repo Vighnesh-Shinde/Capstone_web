@@ -11,6 +11,18 @@ public record MlProcessResponse(
         // Null on the mock pipeline, which has no real features to report.
         List<Double> text_features,
         List<Double> audio_features,
-        String transcript_text
+        String transcript_text,
+
+        // The conversation in DAIC-WOZ format, ready to append to a training
+        // set built from the corpus.
+        String daic_transcript,
+
+        // Who was judged to be whom, and the cosine similarity behind each
+        // judgement. Persisted because this decided whose speech was scored,
+        // and it must stay checkable once the audio is deleted.
+        Map<String, Map<String, Double>> speaker_similarities,
+        String participant_speaker,
+        String counselor_speaker,
+        List<String> companion_speakers
 ) {
 }

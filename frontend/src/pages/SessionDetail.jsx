@@ -140,9 +140,28 @@ export default function SessionDetail() {
 
             {session.status === "FAILED" && (
               <div className="alert alert-error">
-                Processing failed for this session. The recording may be unreadable, too
-                short, or contain no detectable speech. Try uploading it again, or upload
-                a different recording.
+                {/* The server now records a reason for most failures; the
+                    generic text is the fallback for older rows that have none. */}
+                {session.failureReason ||
+                  "Processing failed for this session. The recording may be unreadable, too " +
+                    "short, or contain no detectable speech. Try uploading it again, or upload " +
+                    "a different recording."}
+              </div>
+            )}
+
+            {/* A warning, not an error. The recording is usually fine — the
+                analysis declined to guess whose voice it was reading, which is
+                the correct outcome and something the counselor can resolve. */}
+            {session.status === "SPEAKER_UNVERIFIED" && (
+              <div className="alert alert-warning">
+                <strong>This session was transcribed but not scored.</strong>
+                <p>{session.failureReason}</p>
+                <p className="muted">
+                  Nothing is wrong with the recording itself. The analysis only reads the
+                  participant&apos;s speech, so it has to be certain which voice is
+                  theirs — and it will not guess. Check who was in the room, make sure
+                  everyone besides the participant recorded the passage, and upload again.
+                </p>
               </div>
             )}
           </div>

@@ -31,6 +31,14 @@ public class FileStorageService {
     private static final Set<String> VIDEO_CONTENT_TYPES = Set.of(
             "video/mp4", "video/webm", "video/quicktime", "video/x-msvideo");
 
+    // Voice enrollment recordings. MediaRecorder in the browser produces webm
+    // or ogg depending on the engine, so both have to be accepted; wav and m4a
+    // are here for a counselor uploading a file recorded elsewhere.
+    private static final Set<String> AUDIO_EXTENSIONS = Set.of(".webm", ".ogg", ".wav", ".mp3", ".m4a", ".mp4");
+    private static final Set<String> AUDIO_CONTENT_TYPES = Set.of(
+            "audio/webm", "video/webm", "audio/ogg", "audio/wav", "audio/x-wav",
+            "audio/wave", "audio/mpeg", "audio/mp4", "audio/m4a", "video/mp4");
+
     private static final Set<String> DOCUMENT_EXTENSIONS = Set.of(".pdf", ".jpg", ".jpeg", ".png", ".doc", ".docx");
     private static final Set<String> DOCUMENT_CONTENT_TYPES = Set.of(
             "application/pdf", "image/jpeg", "image/png",
@@ -45,10 +53,47 @@ public class FileStorageService {
     @Value("${app.uploads.document-max-bytes}")
     private long documentMaxBytes;
 
+    // A minute of browser-encoded speech is well under a megabyte; 25MB is
+    // generous headroom for an uncompressed wav recorded elsewhere.
+    @Value("${app.uploads.audio-max-bytes:26214400}")
+    private long audioMaxBytes;
+
     public String storeSessionVideo(UUID participantId, UUID sessionId, MultipartFile video) {
         String extension = validate(video, VIDEO_EXTENSIONS, VIDEO_CONTENT_TYPES, videoMaxBytes, "video");
         Path dir = Path.of(uploadsDir, participantId.toString(), sessionId.toString());
         return copyToDisk(dir, video, "video" + extension);
+    }
+
+    /**
+     * Hold a voice enrollment recording just long enough to extract a vector.
+     *
+     * Written under a scratch directory rather than beside session data,
+     * because it is not meant to survive: the caller deletes it as soon as the
+     * embedding is out. See VoiceprintService.
+     */
+    public String storeVoiceEnrollment(MultipartFile audio) {
+        String extension = validate(audio, AUDIO_EXTENSIONS, AUDIO_CONTENT_TYPES, audioMaxBytes, "audio");
+        Path dir = Path.of(uploadsDir, "voice-enrollment");
+        return copyToDisk(dir, audio, "enroll-" + UUID.randomUUID() + extension);
+    }
+
+    /**
+     * Best-effort delete of a file this service wrote.
+     *
+     * Returns whether it is gone rather than throwing. Callers use it to clean
+     * up enrollment audio, and failing to delete a temporary file must not
+     * fail the enrollment the counselor just completed — but it does need to
+     * be logged loudly, which is the caller's job.
+     */
+    public boolean deleteFile(String path) {
+        if (path == null || path.isBlank()) {
+            return true;
+        }
+        try {
+            return Files.deleteIfExists(Path.of(path));
+        } catch (IOException e) {
+            return false;
+        }
     }
 
     public String storeApplicationDocument(UUID applicationId, MultipartFile document) {

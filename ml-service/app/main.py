@@ -8,7 +8,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.internal_admin import router as internal_router
 from app.mock_inference import run_inference
-from app.schemas import ProcessRequest, ProcessResponse
+from app.schemas import (
+    EnrollVoiceRequest,
+    EnrollVoiceResponse,
+    ProcessRequest,
+    ProcessResponse,
+)
 
 # Loads ml-service/.env if present (gitignored — see README "Real model
 # integration"). Lets USE_REAL_MODELS/HF_TOKEN/etc. live in a local file
@@ -67,15 +72,74 @@ def languages():
     return {"languages": catalog()}
 
 
+@app.post("/enroll-voice", response_model=EnrollVoiceResponse)
+def enroll_voice(request: EnrollVoiceRequest) -> EnrollVoiceResponse:
+    """
+    Turn a recording of one person reading the passage into a voiceprint.
+
+    Returns ok=false with a readable reason rather than raising, because every
+    failure mode here (too short, background voices, silence) is something the
+    person can fix by recording again — an HTTP error code would make the
+    frontend guess at wording the service already knows.
+
+    Mock mode returns a deterministic pseudo-vector so the enrollment and
+    session UI can be exercised without the real models. It is derived from the
+    audio path, so the same "person" enrols consistently and two different ones
+    never match.
+    """
+    if not USE_REAL_MODELS:
+        import hashlib
+        digest = hashlib.sha256(request.audio_path.encode()).digest()
+        vector = [((b / 255.0) - 0.5) for b in digest]
+        norm = sum(v * v for v in vector) ** 0.5 or 1.0
+        return EnrollVoiceResponse(
+            ok=True,
+            embedding=[v / norm for v in vector],
+            dimension=len(vector),
+            speech_seconds=45.0,
+        )
+
+    from app.real.voiceprint import EnrollmentError, extract_voiceprint
+    try:
+        voiceprint = extract_voiceprint(request.audio_path)
+    except EnrollmentError as e:
+        return EnrollVoiceResponse(ok=False, error=str(e))
+    except Exception as e:
+        logger.exception("Voice enrollment failed for %s", request.audio_path)
+        return EnrollVoiceResponse(
+            ok=False,
+            error=f"The recording could not be processed: {e}",
+        )
+
+    return EnrollVoiceResponse(
+        ok=True,
+        embedding=voiceprint.embedding,
+        dimension=voiceprint.dimension,
+        speech_seconds=voiceprint.speech_seconds,
+    )
+
+
 @app.post("/process", response_model=ProcessResponse)
 def process(request: ProcessRequest) -> ProcessResponse:
     if not USE_REAL_MODELS:
         return run_inference(request.session_id, request.video_path)
 
     from app.languages import LanguageNotScorable
+    from app.real.media_pipeline import SpeakerResolutionError
     from app.real.real_inference import run_real_inference
     try:
-        return run_real_inference(request.session_id, request.video_path, request.language)
+        return run_real_inference(
+            request.session_id,
+            request.video_path,
+            request.language,
+            counselor_embedding=request.counselor_embedding,
+            companion_embeddings=request.companion_embeddings,
+        )
+    except SpeakerResolutionError as e:
+        # 422, like the language refusal: the service is healthy and the request
+        # was well formed. The pipeline declined to guess whose voice to score,
+        # and the reason is written for the counselor to act on.
+        raise HTTPException(status_code=422, detail=str(e))
     except LanguageNotScorable as e:
         # 422, not 500: the request was well formed and the service is healthy.
         # This is a refusal with a reason, and the reason is worth showing the

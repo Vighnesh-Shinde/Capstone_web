@@ -3,6 +3,9 @@ const STATUS_LABELS = {
   PROCESSING: "Processing",
   COMPLETED: "Completed",
   FAILED: "Failed",
+  // Not "Failed": nothing malfunctioned. The pipeline declined to guess whose
+  // voice to analyse, and the recording is usually fine.
+  SPEAKER_UNVERIFIED: "Speakers unverified",
   PENDING: "Pending",
   APPROVED: "Approved",
   REJECTED: "Rejected",

@@ -1,5 +1,7 @@
 package com.project.depression.client;
 
+import com.project.depression.dto.MlEnrollVoiceRequest;
+import com.project.depression.dto.MlEnrollVoiceResponse;
 import com.project.depression.dto.MlProcessRequest;
 import com.project.depression.dto.MlProcessResponse;
 import com.project.depression.dto.MlValidateModelRequest;
@@ -38,8 +40,15 @@ public class MlServiceClient {
         this.adminToken = adminToken;
     }
 
-    public MlProcessResponse process(String sessionId, String videoPath, String language) {
-        MlProcessRequest request = new MlProcessRequest(sessionId, videoPath, language);
+    public MlProcessResponse process(
+            String sessionId,
+            String videoPath,
+            String language,
+            java.util.List<Double> counselorEmbedding,
+            java.util.List<java.util.List<Double>> companionEmbeddings
+    ) {
+        MlProcessRequest request = new MlProcessRequest(
+                sessionId, videoPath, language, counselorEmbedding, companionEmbeddings);
         return restClient.post()
                 .uri("/process")
                 .body(request)
@@ -61,6 +70,22 @@ public class MlServiceClient {
                 .uri("/languages")
                 .retrieve()
                 .body(Map.class);
+    }
+
+    /**
+     * Turn an enrollment recording into a voiceprint.
+     *
+     * Not on the token-gated /internal path: this runs on behalf of a
+     * signed-in counselor during an ordinary action, and the backend has
+     * already authenticated them. The endpoint reads an audio file and returns
+     * a vector — unlike model upload, it does not execute what it is given.
+     */
+    public MlEnrollVoiceResponse enrollVoice(String audioPath) {
+        return restClient.post()
+                .uri("/enroll-voice")
+                .body(new MlEnrollVoiceRequest(audioPath))
+                .retrieve()
+                .body(MlEnrollVoiceResponse.class);
     }
 
     /**

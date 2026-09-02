@@ -12,12 +12,17 @@ import {
   IconRequests,
   IconSessions,
   IconUsers,
+  IconVoice,
 } from "./NavIcons";
 
 const COUNSELOR_NAV = [
   { to: "/", label: "Dashboard", icon: IconDashboard, end: true },
   { to: "/sessions", label: "Sessions", icon: IconSessions },
   { to: "/participants", label: "Participants", icon: IconParticipants },
+  // Reachable from the nav, not only from the gate on the session form: a
+  // counselor whose recording expires next week should be able to renew it
+  // when it suits them, rather than being stopped mid-clinic to find it.
+  { to: "/voice-enrollment", label: "My voice", icon: IconVoice },
 ];
 
 const ADMIN_NAV = [

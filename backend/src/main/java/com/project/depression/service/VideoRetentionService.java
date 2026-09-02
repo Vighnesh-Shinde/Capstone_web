@@ -36,6 +36,7 @@ public class VideoRetentionService {
 
     private final SessionRepository sessionRepository;
     private final AuditLogService auditLogService;
+    private final VoiceprintService voiceprintService;
 
     @Value("${app.video-retention.days:30}")
     private int retentionDays;
@@ -43,9 +44,14 @@ public class VideoRetentionService {
     @Value("${app.video-retention.enabled:true}")
     private boolean enabled;
 
-    public VideoRetentionService(SessionRepository sessionRepository, AuditLogService auditLogService) {
+    public VideoRetentionService(
+            SessionRepository sessionRepository,
+            AuditLogService auditLogService,
+            VoiceprintService voiceprintService
+    ) {
         this.sessionRepository = sessionRepository;
         this.auditLogService = auditLogService;
+        this.voiceprintService = voiceprintService;
     }
 
     /** Runs daily at 03:15 server time — off-peak, and after any nightly backup. */
@@ -76,6 +82,18 @@ public class VideoRetentionService {
                 // should still stop being reconsidered on every sweep.
                 session.setVideoDeletedAt(Instant.now());
                 sessionRepository.save(session);
+
+                // A companion's voiceprint exists only to separate their voice
+                // out of this one recording. Once the recording is gone it has
+                // no purpose, and it belongs to a third party who has no
+                // account here and agreed to one appointment — keeping it
+                // longer than the audio it explained would be indefensible.
+                // The row survives, so the report can still say who was present.
+                int purged = voiceprintService.purgeCompanionEmbeddings(session);
+                if (purged > 0) {
+                    log.info("Retention: purged {} companion voiceprint(s) for session {}",
+                            purged, session.getId());
+                }
 
                 if (existed) {
                     deleted++;

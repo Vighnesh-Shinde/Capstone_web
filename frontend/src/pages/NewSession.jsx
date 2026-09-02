@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { createSession } from "../api/sessions";
 import { listParticipants } from "../api/participants";
 import LanguageSelect from "../components/LanguageSelect";
+import CompanionStep from "../components/CompanionStep";
+import VoiceprintGate from "../components/VoiceprintGate";
 
 const initialConsent = {
   recording: false,
@@ -13,7 +15,7 @@ const initialConsent = {
 
 export default function NewSession() {
   const navigate = useNavigate();
-  const [step, setStep] = useState("details"); // details -> consent -> capture
+  const [step, setStep] = useState("details"); // details -> consent -> room -> capture
   const [participantRef, setParticipantRef] = useState("");
   const [participantMode, setParticipantMode] = useState("new"); // "new" | "returning"
   const [participants, setParticipants] = useState([]);
@@ -22,6 +24,9 @@ export default function NewSession() {
   // Defaults to English, the only language with trained models today. Chosen
   // here rather than detected from the audio: see LanguageSelect for why.
   const [language, setLanguage] = useState("en");
+  // Everyone in the room who is not the participant. Each records the passage
+  // so their speech can be subtracted rather than scored.
+  const [companions, setCompanions] = useState([]);
   const [consent, setConsent] = useState(initialConsent);
   const [mode, setMode] = useState("upload"); // "upload" | "record"
   const [file, setFile] = useState(null);
@@ -132,6 +137,24 @@ export default function NewSession() {
       setError("Recording, AI analysis, and storage consent are required to proceed.");
       return;
     }
+    setStep("room");
+  }
+
+  function handleRoomNext(e) {
+    e.preventDefault();
+    setError("");
+
+    // Blocked rather than warned. A companion who speaks without a recording
+    // makes the session unscorable, and that is only discovered after the
+    // interview is over and the participant has gone home.
+    const incomplete = companions.filter((c) => !c.audio || !c.consentGiven);
+    if (incomplete.length > 0) {
+      setError(
+        "Everyone in the room besides the participant needs a voice recording and " +
+          "their agreement before the interview starts."
+      );
+      return;
+    }
     setStep("capture");
   }
 
@@ -146,7 +169,9 @@ export default function NewSession() {
 
     setSubmitting(true);
     try {
-      const session = await createSession(participantRef.trim(), file, consent, language);
+      const session = await createSession(
+        participantRef.trim(), file, consent, language, companions
+      );
       navigate(`/sessions/${session.id}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create session.");
@@ -157,6 +182,12 @@ export default function NewSession() {
   return (
     <div className="page">
       <h1>New Session</h1>
+
+      {/* Renders the whole form only once the counselor's own voice is on
+          file. Without it the pipeline cannot tell their speech from the
+          participant's, and finding that out after the interview means asking
+          the participant to come back. */}
+      <VoiceprintGate>
 
       {step === "details" && (
         <form className="card" onSubmit={handleDetailsNext}>
@@ -293,9 +324,26 @@ export default function NewSession() {
 
           <div className="action-row">
             <button className="btn-primary" type="submit">
-              Next: Upload / record video
+              Next: Who else is present
             </button>
             <button type="button" className="btn-secondary" onClick={() => setStep("details")}>
+              Back
+            </button>
+          </div>
+        </form>
+      )}
+
+      {step === "room" && (
+        <form className="card" onSubmit={handleRoomNext}>
+          <CompanionStep companions={companions} onChange={setCompanions} />
+
+          {error && <div className="alert alert-error">{error}</div>}
+
+          <div className="action-row">
+            <button className="btn-primary" type="submit">
+              Next: Upload / record video
+            </button>
+            <button type="button" className="btn-secondary" onClick={() => setStep("consent")}>
               Back
             </button>
           </div>
@@ -374,12 +422,13 @@ export default function NewSession() {
             <button className="btn-primary" type="submit" disabled={submitting}>
               {submitting ? "Uploading..." : "Submit for analysis"}
             </button>
-            <button type="button" className="btn-secondary" onClick={() => setStep("consent")}>
+            <button type="button" className="btn-secondary" onClick={() => setStep("room")}>
               Back
             </button>
           </div>
         </form>
       )}
+      </VoiceprintGate>
     </div>
   );
 }

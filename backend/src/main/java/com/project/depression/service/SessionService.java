@@ -5,6 +5,7 @@ import com.project.depression.entity.*;
 import com.project.depression.repository.CounselorJudgmentRepository;
 import com.project.depression.repository.ParticipantRepository;
 import com.project.depression.repository.ReportRepository;
+import com.project.depression.repository.SessionCompanionRepository;
 import com.project.depression.repository.SessionRepository;
 import com.project.depression.repository.UserRepository;
 import jakarta.persistence.criteria.Predicate;
@@ -43,6 +44,8 @@ public class SessionService {
     private final ParticipantService participantService;
     private final ParticipantRepository participantRepository;
     private final LanguageCatalogService languageCatalog;
+    private final VoiceprintService voiceprintService;
+    private final SessionCompanionRepository companionRepository;
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -53,7 +56,9 @@ public class SessionService {
             FileStorageService fileStorageService,
             ParticipantService participantService,
             ParticipantRepository participantRepository,
-            LanguageCatalogService languageCatalog
+            LanguageCatalogService languageCatalog,
+            VoiceprintService voiceprintService,
+            SessionCompanionRepository companionRepository
     ) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
@@ -64,6 +69,8 @@ public class SessionService {
         this.participantService = participantService;
         this.participantRepository = participantRepository;
         this.languageCatalog = languageCatalog;
+        this.voiceprintService = voiceprintService;
+        this.companionRepository = companionRepository;
     }
 
     // Deliberately not @Transactional: each save() below commits on its own,
@@ -72,10 +79,19 @@ public class SessionService {
     // in one transaction would race the async task against the commit.
     public SessionResponse createSession(
             String counselorEmail, String participantRef, MultipartFile video, String language,
-            boolean consentRecording, boolean consentAiAnalysis, boolean consentStorage, boolean consentResearchReuse
+            boolean consentRecording, boolean consentAiAnalysis, boolean consentStorage,
+            boolean consentResearchReuse, List<CompanionEnrollment> companions
     ) {
         User counselor = userRepository.findByEmail(counselorEmail)
                 .orElseThrow(() -> new NoSuchElementException("Counselor not found"));
+
+        // Checked before anything is written to disk. The audio model was
+        // trained on participant speech alone, so without the counselor's
+        // voiceprint there is no way to tell which voice in the recording is
+        // the participant's — and guessing is what this replaced. Failing here
+        // costs a moment; failing after the interview cannot be undone,
+        // because the participant has gone home.
+        voiceprintService.requireCurrentVoiceprint(counselor);
 
         // Rejected here, before the video is written to disk. Accepting the
         // upload and only failing during async processing would leave the
@@ -104,9 +120,21 @@ public class SessionService {
         session.setVideoPath(storedPath);
         session = sessionRepository.save(session);
 
+        // Enrolled before processing starts, not after. The pipeline reads the
+        // companion vectors when it runs, and a companion registered a second
+        // too late would appear as an unidentified third voice — which
+        // correctly, but pointlessly, refuses the whole session.
+        for (CompanionEnrollment companion : companions == null ? List.<CompanionEnrollment>of() : companions) {
+            if (companion.audio() == null || companion.audio().isEmpty()) {
+                continue;
+            }
+            voiceprintService.enrollCompanion(
+                    session, companion.roleLabel(), companion.consentGiven(), companion.audio());
+        }
+
         sessionProcessingService.processSessionAsync(session.getId());
 
-        return toSessionResponse(session, null, null);
+        return toSessionResponse(session, null, null, companionResponses(session));
     }
 
     /**
@@ -125,7 +153,12 @@ public class SessionService {
                 ownedBy(counselor, status, participantId, search), pageable);
         Page<SessionResponse> mapped = sessions.map(s -> {
             Report report = reportRepository.findBySessionId(s.getId()).orElse(null);
-            return toSessionResponse(s, report == null ? null : report.getPrediction(), report == null ? null : report.getConfidenceScore());
+            // Empty on purpose: the session list does not show who else was in
+            // the room, and fetching it here would be one query per row.
+            return toSessionResponse(s,
+                    report == null ? null : report.getPrediction(),
+                    report == null ? null : report.getConfidenceScore(),
+                    List.of());
         });
         return PageResponse.from(mapped);
     }
@@ -190,14 +223,18 @@ public class SessionService {
         Report report = reportRepository.findBySessionId(sessionId).orElse(null);
         return toSessionResponse(session,
                 report == null ? null : report.getPrediction(),
-                report == null ? null : report.getConfidenceScore());
+                report == null ? null : report.getConfidenceScore(),
+                companionResponses(session));
     }
 
     @Transactional(readOnly = true)
     public SessionResponse getSession(String counselorEmail, UUID sessionId) {
         Session session = getOwnedSession(counselorEmail, sessionId);
         Report report = reportRepository.findBySessionId(sessionId).orElse(null);
-        return toSessionResponse(session, report == null ? null : report.getPrediction(), report == null ? null : report.getConfidenceScore());
+        return toSessionResponse(session,
+                report == null ? null : report.getPrediction(),
+                report == null ? null : report.getConfidenceScore(),
+                companionResponses(session));
     }
 
     @Transactional(readOnly = true)
@@ -242,7 +279,27 @@ public class SessionService {
         return session;
     }
 
-    private SessionResponse toSessionResponse(Session session, Prediction prediction, Double confidenceScore) {
+    /**
+     * Companions are passed in rather than read off the entity.
+     *
+     * Two reasons. The collection is LAZY, so the session list would fire one
+     * extra query per row for something the list never shows; and after
+     * createSession() enrols a companion the in-memory entity's collection is
+     * still empty, so reading it there would silently report no companions on
+     * the very response that should show them.
+     */
+    private List<SessionCompanionResponse> companionResponses(Session session) {
+        return companionRepository.findBySessionOrderByEnrolledAt(session).stream()
+                .map(c -> new SessionCompanionResponse(
+                        c.getId(), c.getRoleLabel(), c.isConsentGiven(),
+                        c.getEnrolledAt(), c.getPurgedAt() != null))
+                .toList();
+    }
+
+    private SessionResponse toSessionResponse(
+            Session session, Prediction prediction, Double confidenceScore,
+            List<SessionCompanionResponse> companions
+    ) {
         return new SessionResponse(
                 session.getId(),
                 session.getParticipant() == null ? null : session.getParticipant().getId(),
@@ -255,6 +312,11 @@ public class SessionService {
                 prediction == null ? null : prediction.name(),
                 confidenceScore,
                 session.getNotes(),
+                session.getFailureReason(),
+                session.getSpeakerAttribution() == null
+                        ? null : session.getSpeakerAttribution().name(),
+                session.getSpeakerSimilarities(),
+                companions,
                 session.isConsentRecording(),
                 session.isConsentAiAnalysis(),
                 session.isConsentStorage(),

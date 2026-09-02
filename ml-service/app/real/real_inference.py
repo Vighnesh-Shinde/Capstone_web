@@ -21,6 +21,7 @@ import numpy as np
 from app.languages import DEFAULT_LANGUAGE, LanguageNotScorable
 from app.real import media_pipeline
 from app.real.audio_features import compute_audio_features
+from app.real.daic_transcript import build_transcript
 from app.real.model_loader import Models, scoring_languages
 from app.real.text_features import compute_text_features
 from app.schemas import ExplanationItem, ProcessResponse
@@ -77,6 +78,8 @@ def run_real_inference(
     session_id: str,
     video_path: str,
     language: str = DEFAULT_LANGUAGE,
+    counselor_embedding=None,
+    companion_embeddings=None,
 ) -> ProcessResponse:
     # Checked before a frame is decoded. Transcribing an hour of Marathi and
     # only then admitting there is nothing to score it with wastes the
@@ -84,7 +87,12 @@ def run_real_inference(
     if language not in scoring_languages():
         raise LanguageNotScorable(language)
 
-    transcript = media_pipeline.process_video(video_path, language=language)
+    transcript = media_pipeline.process_video(
+        video_path,
+        language=language,
+        counselor_embedding=counselor_embedding,
+        companion_embeddings=companion_embeddings,
+    )
     try:
         text_bundle = Models.text(language)
         audio_bundle = Models.audio(language)
@@ -135,6 +143,16 @@ def run_real_inference(
             transcript_text=" ".join(
                 seg.text for seg in transcript.participant_segments
             ).strip(),
+            # The full conversation in DAIC-WOZ format, so a real session can
+            # join a training set built from the corpus without a second parser.
+            daic_transcript=build_transcript(transcript),
+            # How each speaker was identified. Stored with the session so the
+            # decision that determined whose voice was scored stays auditable
+            # long after the audio itself has been deleted.
+            speaker_similarities=transcript.speaker_similarities,
+            counselor_speaker=transcript.counselor_speaker,
+            participant_speaker=transcript.participant_speaker,
+            companion_speakers=transcript.companion_speakers,
         )
     finally:
         media_pipeline.cleanup_wav(transcript.wav_path)
