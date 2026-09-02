@@ -1,6 +1,7 @@
 package com.project.depression.controller;
 
 import com.project.depression.dto.AdminUserResponse;
+import com.project.depression.dto.SetVerificationRequest;
 import com.project.depression.dto.PageResponse;
 import com.project.depression.entity.Role;
 import com.project.depression.entity.User;
@@ -47,6 +48,23 @@ public class AdminUserController {
     @PostMapping("/{id}/reactivate")
     public ResponseEntity<AdminUserResponse> reactivate(@PathVariable UUID id, Authentication authentication) {
         return ResponseEntity.ok(adminUserService.reactivate(id, currentAdmin(authentication)));
+    }
+
+    /**
+     * Re-confirm a counselor's credentials, or move the next review date.
+     *
+     * Approval sets this once from the licence expiry on the application; this
+     * is how it gets renewed afterwards. Without it, verification would be a
+     * one-shot field that silently goes stale and can never be refreshed.
+     */
+    @PostMapping("/{id}/verification")
+    public ResponseEntity<AdminUserResponse> setVerification(
+            @PathVariable UUID id,
+            @RequestBody SetVerificationRequest request,
+            Authentication authentication
+    ) {
+        return ResponseEntity.ok(
+                adminUserService.setVerification(id, request, currentAdmin(authentication)));
     }
 
     @PostMapping("/{id}/reset-password")

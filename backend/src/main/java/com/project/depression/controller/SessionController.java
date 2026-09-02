@@ -34,13 +34,14 @@ public class SessionController {
             Authentication authentication,
             @RequestParam("video") MultipartFile video,
             @RequestParam("participant_ref") @NotBlank String participantRef,
+            @RequestParam(value = "language", defaultValue = "en") String language,
             @RequestParam(value = "consent_recording", defaultValue = "false") boolean consentRecording,
             @RequestParam(value = "consent_ai_analysis", defaultValue = "false") boolean consentAiAnalysis,
             @RequestParam(value = "consent_storage", defaultValue = "false") boolean consentStorage,
             @RequestParam(value = "consent_research_reuse", defaultValue = "false") boolean consentResearchReuse
     ) {
         SessionResponse response = sessionService.createSession(
-                authentication.getName(), participantRef, video,
+                authentication.getName(), participantRef, video, language,
                 consentRecording, consentAiAnalysis, consentStorage, consentResearchReuse
         );
         return ResponseEntity.status(201).body(response);

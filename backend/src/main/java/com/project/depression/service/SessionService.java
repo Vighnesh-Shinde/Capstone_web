@@ -42,6 +42,7 @@ public class SessionService {
     private final FileStorageService fileStorageService;
     private final ParticipantService participantService;
     private final ParticipantRepository participantRepository;
+    private final LanguageCatalogService languageCatalog;
 
     public SessionService(
             SessionRepository sessionRepository,
@@ -51,7 +52,8 @@ public class SessionService {
             SessionProcessingService sessionProcessingService,
             FileStorageService fileStorageService,
             ParticipantService participantService,
-            ParticipantRepository participantRepository
+            ParticipantRepository participantRepository,
+            LanguageCatalogService languageCatalog
     ) {
         this.sessionRepository = sessionRepository;
         this.userRepository = userRepository;
@@ -61,6 +63,7 @@ public class SessionService {
         this.fileStorageService = fileStorageService;
         this.participantService = participantService;
         this.participantRepository = participantRepository;
+        this.languageCatalog = languageCatalog;
     }
 
     // Deliberately not @Transactional: each save() below commits on its own,
@@ -68,11 +71,17 @@ public class SessionService {
     // (running on another thread/connection) tries to read it. Wrapping this
     // in one transaction would race the async task against the commit.
     public SessionResponse createSession(
-            String counselorEmail, String participantRef, MultipartFile video,
+            String counselorEmail, String participantRef, MultipartFile video, String language,
             boolean consentRecording, boolean consentAiAnalysis, boolean consentStorage, boolean consentResearchReuse
     ) {
         User counselor = userRepository.findByEmail(counselorEmail)
                 .orElseThrow(() -> new NoSuchElementException("Counselor not found"));
+
+        // Rejected here, before the video is written to disk. Accepting the
+        // upload and only failing during async processing would leave the
+        // counselor watching a progress spinner for an interview that was
+        // never going to be scorable.
+        String validatedLanguage = languageCatalog.requireScorable(language);
 
         Participant participant = participantService.findOrCreate(counselor, participantRef);
 
@@ -80,6 +89,7 @@ public class SessionService {
                 .counselor(counselor)
                 .participantRef(participantRef)
                 .participant(participant)
+                .language(validatedLanguage)
                 .status(SessionStatus.UPLOADED)
                 .consentRecording(consentRecording)
                 .consentAiAnalysis(consentAiAnalysis)
@@ -238,6 +248,10 @@ public class SessionService {
                 session.getParticipant() == null ? null : session.getParticipant().getId(),
                 session.getParticipantRef(),
                 session.getStatus().name(),
+                session.getLanguage(),
+                languageCatalog.find(session.getLanguage())
+                        .map(com.project.depression.dto.LanguageOption::name)
+                        .orElse(session.getLanguage()),
                 prediction == null ? null : prediction.name(),
                 confidenceScore,
                 session.getNotes(),

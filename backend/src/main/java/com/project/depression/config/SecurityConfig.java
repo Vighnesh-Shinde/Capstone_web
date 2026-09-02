@@ -87,6 +87,10 @@ public class SecurityConfig {
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/counselor-applications").permitAll()
+                        // Countries, dial codes, languages, document types. The
+                        // application form is public and cannot be filled in
+                        // without them, and none of it is user-specific.
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/reference/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/sessions/**", "/api/participants/**").hasRole("COUNSELOR")

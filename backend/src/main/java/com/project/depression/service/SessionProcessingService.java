@@ -63,7 +63,7 @@ public class SessionProcessingService {
             session.setStatus(SessionStatus.PROCESSING);
             sessionRepository.save(session);
 
-            MlProcessResponse mlResponse = mlServiceClient.process(sessionId.toString(), session.getVideoPath());
+            MlProcessResponse mlResponse = mlServiceClient.process(sessionId.toString(), session.getVideoPath(), session.getLanguage());
             Map<String, Double> modalityContributions = mlResponse.modality_contributions();
 
             Report report = Report.builder()

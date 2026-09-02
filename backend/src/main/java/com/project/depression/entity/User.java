@@ -58,6 +58,29 @@ public class User {
     @Column(name = "application_id")
     private UUID applicationId;
 
+    /**
+     * Contact and professional details. Empty for ADMIN accounts, which are
+     * seeded rather than applied for and hold no clinical role.
+     */
+    @Embedded
+    @Builder.Default
+    private ProfessionalProfile profile = new ProfessionalProfile();
+
+    /** When an administrator last confirmed this counselor's credentials. */
+    @Column(name = "verified_at")
+    private Instant verifiedAt;
+
+    /**
+     * When that confirmation lapses. Credentials expire; an account approved
+     * against a licence that has since lapsed is not a verified account, and
+     * nothing in the system could previously notice that.
+     */
+    @Column(name = "verified_until")
+    private java.time.LocalDate verifiedUntil;
+
+    @Column(name = "verified_by")
+    private UUID verifiedBy;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
@@ -66,5 +89,19 @@ public class User {
         if (createdAt == null) {
             createdAt = Instant.now();
         }
+    }
+
+    /**
+     * Null-safe accessor. An @Embeddable whose columns are all null is loaded
+     * back as null by Hibernate, so every read site would otherwise need its
+     * own guard — including the ones written after this comment.
+     */
+    public ProfessionalProfile profileOrEmpty() {
+        return profile != null ? profile : new ProfessionalProfile();
+    }
+
+    /** True once an administrator's verification has lapsed. */
+    public boolean isVerificationExpired() {
+        return verifiedUntil != null && verifiedUntil.isBefore(java.time.LocalDate.now());
     }
 }

@@ -5,8 +5,15 @@ export async function getProfile() {
   return data;
 }
 
-export async function updateProfile({ name, username }) {
-  const { data } = await apiClient.patch("/me", { name, username });
+/**
+ * The whole profile is sent every time, not a partial patch.
+ *
+ * The form holds every field, so anything omitted here was cleared by the user
+ * on purpose. Sending only the changed keys would make "I deleted my address"
+ * indistinguishable from "I didn't touch my address".
+ */
+export async function updateProfile(profile) {
+  const { data } = await apiClient.patch("/me", profile);
   return data;
 }
 

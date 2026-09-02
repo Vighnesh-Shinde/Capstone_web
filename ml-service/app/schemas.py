@@ -6,6 +6,10 @@ from pydantic import BaseModel, Field
 class ProcessRequest(BaseModel):
     session_id: str
     video_path: str
+    # BCP-47 code chosen by the counselor when the session was created. Defaults
+    # to English so an older backend that doesn't send it keeps working, and so
+    # the default is the one language actually validated end to end.
+    language: str = "en"
 
 
 class ExplanationItem(BaseModel):

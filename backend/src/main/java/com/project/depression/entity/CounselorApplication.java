@@ -33,20 +33,26 @@ public class CounselorApplication {
     @Column(name = "password_hash", nullable = false)
     private String passwordHash;
 
+    /**
+     * The single free-text phone field from before phone numbers were split
+     * into a dial code and a national number. Kept so applications submitted
+     * under the old form still display what they actually said, rather than
+     * appearing to have no contact number at all.
+     */
     private String phone;
-    private String organization;
 
-    @Column(name = "professional_role")
-    private String professionalRole;
-
-    private String qualification;
     private String experience;
-
-    @Column(name = "registration_number")
-    private String registrationNumber;
 
     @Column(name = "additional_info")
     private String additionalInfo;
+
+    /**
+     * What the applicant submitted, frozen at submission. The approved
+     * counselor's live, editable copy lives on {@link User}.
+     */
+    @Embedded
+    @Builder.Default
+    private ProfessionalProfile profile = new ProfessionalProfile();
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false)
@@ -78,5 +84,10 @@ public class CounselorApplication {
         if (submittedAt == null) {
             submittedAt = Instant.now();
         }
+    }
+
+    /** See {@link User#profileOrEmpty()} — Hibernate nulls an all-null embeddable. */
+    public ProfessionalProfile profileOrEmpty() {
+        return profile != null ? profile : new ProfessionalProfile();
     }
 }

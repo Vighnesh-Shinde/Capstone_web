@@ -8,6 +8,17 @@ service switches over without a code change or a redeploy. If the manifest is
 absent (a fresh install, or before any admin upload), the original filenames
 shipped with the project are used, so nothing breaks by default.
 
+The manifest is keyed by LANGUAGE first, then modality:
+
+    {"en": {"text": "...", "audio": "...", "fusion": "..."},
+     "mr": {"text": "...", "audio": "...", "fusion": "..."}}
+
+so a Marathi model set is installed by exactly the same upload-and-activate
+flow as replacing the English one, and a language becomes scorable the moment
+all three of its files are present. Earlier deployments wrote a flat
+{"text": ...} manifest with no language level; that shape is still read and
+treated as English, so an existing install keeps working across the upgrade.
+
 model3 (video) and model5 (MentalBERT alternative) are deliberately not loaded:
 the research project's own testing found including video makes the fused result
 WORSE, and model5 is an optional alternative, not part of the recommended path.
@@ -35,12 +46,17 @@ logger = logging.getLogger("ml-service")
 MODELS_DIR = Path(__file__).resolve().parent.parent.parent / "models"
 MANIFEST_PATH = MODELS_DIR / "active_manifest.json"
 
-# Used when no manifest exists yet — the files the project shipped with.
+MODALITIES = ("text", "audio", "fusion")
+
+# Used when no manifest exists yet — the files the project shipped with. These
+# are English models; no other language ships with weights.
 DEFAULT_FILENAMES = {
     "text": "text_honest.joblib",
     "audio": "audio_covarep.joblib",
     "fusion": "fusion_text_audio.joblib",
 }
+
+DEFAULT_LANGUAGE = "en"
 
 # What each modality's feature vector must be. A model whose input width
 # doesn't match would still load and still return a probability — it would just
@@ -62,17 +78,62 @@ class ModelBundle:
     source_file: str
 
 
-def read_manifest() -> dict[str, str]:
-    """Active filename per modality, falling back to the shipped defaults."""
-    filenames = dict(DEFAULT_FILENAMES)
-    if MANIFEST_PATH.exists():
-        try:
-            filenames.update(json.loads(MANIFEST_PATH.read_text()))
-        except (json.JSONDecodeError, OSError) as e:
-            # A corrupt manifest must not take the service down — fall back to
-            # the defaults and make the problem loud instead.
-            logger.error("Could not read %s (%s); using default model files.", MANIFEST_PATH, e)
-    return filenames
+def read_manifest() -> dict[str, dict[str, str]]:
+    """
+    Active filename per modality, per language, over the shipped defaults.
+
+    Accepts both the current nested shape and the legacy flat one written
+    before languages existed; a flat manifest is read as English so an
+    in-place upgrade does not orphan an admin's already-activated models.
+    """
+    manifest: dict[str, dict[str, str]] = {DEFAULT_LANGUAGE: dict(DEFAULT_FILENAMES)}
+
+    if not MANIFEST_PATH.exists():
+        return manifest
+
+    try:
+        raw = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as e:
+        # A corrupt manifest must not take the service down — fall back to the
+        # defaults and make the problem loud instead.
+        logger.error("Could not read %s (%s); using default model files.", MANIFEST_PATH, e)
+        return manifest
+
+    if not isinstance(raw, dict):
+        logger.error("%s is not a JSON object; using default model files.", MANIFEST_PATH)
+        return manifest
+
+    for key, value in raw.items():
+        if isinstance(value, str) and key in MODALITIES:
+            manifest[DEFAULT_LANGUAGE][key] = value          # legacy flat entry
+        elif isinstance(value, dict):
+            language = manifest.setdefault(key, {})
+            language.update({m: f for m, f in value.items() if isinstance(f, str)})
+        else:
+            logger.warning("Ignoring unrecognised manifest entry %r.", key)
+
+    return manifest
+
+
+def installed_files(language: str) -> dict[str, str]:
+    """Filenames the manifest claims for one language (may not exist on disk)."""
+    return dict(read_manifest().get(language, {}))
+
+
+def scoring_languages() -> set[str]:
+    """
+    Languages whose full model set is present on disk.
+
+    Presence is checked against the filesystem rather than trusting the
+    manifest, because "activated" and "actually installed" can drift — a file
+    can be removed underneath us, and a language that advertises itself as
+    scorable but then fails mid-session is worse than one that never offered.
+    """
+    return {
+        language
+        for language, files in read_manifest().items()
+        if all(m in files and (MODELS_DIR / files[m]).exists() for m in MODALITIES)
+    }
 
 
 def feature_count(model: Any) -> int | None:
@@ -118,17 +179,24 @@ def inspect_bundle(path: Path) -> dict:
     }
 
 
-def _load(modality: str) -> ModelBundle:
-    filename = read_manifest()[modality]
+def _load(language: str, modality: str) -> ModelBundle:
+    files = read_manifest().get(language, {})
+    filename = files.get(modality)
+    if filename is None:
+        raise FileNotFoundError(
+            f"No {modality} model is registered for language '{language}'. "
+            f"An administrator must upload and activate one."
+        )
+
     path = MODELS_DIR / filename
     if not path.exists():
         raise FileNotFoundError(
-            f"Model file not found: {path}. Expected the active {modality} model — check "
-            f"models/active_manifest.json, or see README 'Real model integration'."
+            f"Model file not found: {path}. Expected the active {language}/{modality} model — "
+            f"check models/active_manifest.json, or see README 'Real model integration'."
         )
 
     bundle = joblib.load(path)
-    logger.info("Loaded %s model from %s", modality, filename)
+    logger.info("Loaded %s/%s model from %s", language, modality, filename)
     return ModelBundle(
         model=bundle["model"],
         threshold=bundle["threshold"],
@@ -143,37 +211,47 @@ class Models:
     """Lazily loaded singletons — loaded once, reused across requests."""
 
     _lock = threading.Lock()
-    _cache: dict[str, ModelBundle] = {}
+    _cache: dict[tuple[str, str], ModelBundle] = {}
 
     @classmethod
-    def _get(cls, modality: str) -> ModelBundle:
-        if modality not in cls._cache:
+    def _get(cls, language: str, modality: str) -> ModelBundle:
+        key = (language, modality)
+        if key not in cls._cache:
             with cls._lock:
-                if modality not in cls._cache:
-                    cls._cache[modality] = _load(modality)
-        return cls._cache[modality]
+                if key not in cls._cache:
+                    cls._cache[key] = _load(language, modality)
+        return cls._cache[key]
 
     @classmethod
-    def text(cls) -> ModelBundle:
-        return cls._get("text")
+    def text(cls, language: str = DEFAULT_LANGUAGE) -> ModelBundle:
+        return cls._get(language, "text")
 
     @classmethod
-    def audio(cls) -> ModelBundle:
-        return cls._get("audio")
+    def audio(cls, language: str = DEFAULT_LANGUAGE) -> ModelBundle:
+        return cls._get(language, "audio")
 
     @classmethod
-    def fusion(cls) -> ModelBundle:
-        return cls._get("fusion")
+    def fusion(cls, language: str = DEFAULT_LANGUAGE) -> ModelBundle:
+        return cls._get(language, "fusion")
 
     @classmethod
     def preload_all(cls) -> None:
-        """Call at startup so the first real request isn't slow."""
-        cls.text()
-        cls.audio()
-        cls.fusion()
+        """
+        Call at startup so the first real request isn't slow.
+
+        Only languages that are fully installed are preloaded, and a failure in
+        one does not block the others: a half-configured Marathi upload must
+        not stop the service from serving English.
+        """
+        for language in sorted(scoring_languages()):
+            for modality in MODALITIES:
+                try:
+                    cls._get(language, modality)
+                except Exception:
+                    logger.exception("Could not preload the %s/%s model.", language, modality)
 
     @classmethod
-    def reload(cls) -> dict[str, str]:
+    def reload(cls) -> dict[str, dict[str, str]]:
         """
         Drop cached models and load whatever the manifest now points at.
 
@@ -183,10 +261,18 @@ class Models:
         inference down.
         """
         with cls._lock:
-            fresh = {modality: _load(modality) for modality in DEFAULT_FILENAMES}
+            fresh = {
+                (language, modality): _load(language, modality)
+                for language in sorted(scoring_languages())
+                for modality in MODALITIES
+            }
             cls._cache = fresh
-        return {modality: bundle.source_file for modality, bundle in fresh.items()}
+
+        loaded: dict[str, dict[str, str]] = {}
+        for (language, modality), bundle in fresh.items():
+            loaded.setdefault(language, {})[modality] = bundle.source_file
+        return loaded
 
     @classmethod
-    def active_files(cls) -> dict[str, str]:
+    def active_files(cls) -> dict[str, dict[str, str]]:
         return read_manifest()

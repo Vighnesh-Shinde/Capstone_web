@@ -35,21 +35,25 @@ public class AdminModelController {
 
     @GetMapping
     public ResponseEntity<List<ModelVersionResponse>> list(
-            @RequestParam(required = false) ModelModality modality
+            @RequestParam(required = false) ModelModality modality,
+            @RequestParam(required = false) String language
     ) {
-        return ResponseEntity.ok(modelVersionService.list(modality));
+        return ResponseEntity.ok(modelVersionService.list(modality, language));
     }
 
     @PostMapping(consumes = "multipart/form-data")
     public ResponseEntity<ModelVersionResponse> upload(
             Authentication authentication,
             @RequestParam("modality") ModelModality modality,
+            // Defaulted rather than required: an admin replacing the English
+            // models — still the common case — should not have to say so.
+            @RequestParam(value = "language", defaultValue = "en") String language,
             @RequestParam("file") MultipartFile file,
             @RequestParam(value = "versionLabel", required = false) String versionLabel,
             @RequestParam(value = "notes", required = false) String notes
     ) {
         ModelVersionResponse response = modelVersionService.upload(
-                modality, versionLabel, notes, file, currentAdmin(authentication));
+                modality, language, versionLabel, notes, file, currentAdmin(authentication));
         return ResponseEntity.status(201).body(response);
     }
 
@@ -64,9 +68,11 @@ public class AdminModelController {
     /** Escape hatch back to the weights that shipped with the project. */
     @PostMapping("/revert-to-default")
     public ResponseEntity<Void> revertToDefault(
-            @RequestParam("modality") ModelModality modality, Authentication authentication
+            @RequestParam("modality") ModelModality modality,
+            @RequestParam(value = "language", defaultValue = "en") String language,
+            Authentication authentication
     ) {
-        modelVersionService.revertToDefault(modality, currentAdmin(authentication));
+        modelVersionService.revertToDefault(modality, language, currentAdmin(authentication));
         return ResponseEntity.noContent().build();
     }
 

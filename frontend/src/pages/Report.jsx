@@ -85,6 +85,9 @@ export default function Report() {
                 </span>
                 <span className="verdict-meta">
                   Generated {new Date(report.createdAt).toLocaleString()}
+                  {session?.languageName && (
+                    <> · Interview conducted in {session.languageName}</>
+                  )}
                 </span>
               </div>
               <ConfidenceRing

@@ -9,8 +9,13 @@ import {
   suspendApplication,
 } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
+import ProfileSummary from "../../components/ProfileSummary";
+import useReferenceData from "../../hooks/useReferenceData";
+import { getCountries } from "../../api/reference";
 
 export default function AdminApplicationDetail() {
+  // Only used to render a flag and full country name beside the ISO code.
+  const { data: countries } = useReferenceData(getCountries);
   const { id } = useParams();
   const [application, setApplication] = useState(null);
   const [error, setError] = useState("");
@@ -61,26 +66,14 @@ export default function AdminApplicationDetail() {
             <span className="field-label">Email</span>
             <span>{application.email}</span>
           </div>
-          <div className="detail-item">
-            <span className="field-label">Phone</span>
-            <span>{application.phone || "—"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="field-label">Organization</span>
-            <span>{application.organization || "—"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="field-label">Professional role</span>
-            <span>{application.professionalRole || "—"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="field-label">Qualification</span>
-            <span>{application.qualification || "—"}</span>
-          </div>
-          <div className="detail-item">
-            <span className="field-label">Registration number</span>
-            <span>{application.registrationNumber || "—"}</span>
-          </div>
+          {/* Only for applications submitted before phone numbers were split
+              into a dial code and a national number. */}
+          {application.legacyPhone && (
+            <div className="detail-item">
+              <span className="field-label">Phone (as submitted)</span>
+              <span>{application.legacyPhone}</span>
+            </div>
+          )}
           <div className="detail-item">
             <span className="field-label">Submitted</span>
             <span>{new Date(application.submittedAt).toLocaleString()}</span>
@@ -95,6 +88,8 @@ export default function AdminApplicationDetail() {
             </div>
           )}
         </div>
+
+        <ProfileSummary profile={application.profile} countries={countries} />
 
         {application.experience && (
           <>
@@ -115,16 +110,41 @@ export default function AdminApplicationDetail() {
 
       <div className="card">
         <h2>Verification documents</h2>
-        {application.documents.length === 0 && <p className="muted">No documents uploaded.</p>}
+        {application.documents.length === 0 && (
+          <div className="alert alert-warning">
+            No documents were uploaded. There is nothing here to verify this
+            applicant&apos;s claimed qualifications against.
+          </div>
+        )}
         <div className="document-list">
           {application.documents.map((doc) => (
-            <button
-              key={doc.id}
-              className="btn-link"
-              onClick={() => downloadDocument(application.id, doc.id, doc.fileName)}
-            >
-              {doc.fileName}
-            </button>
+            <div key={doc.id} className="document-row">
+              <div className="document-main">
+                <span className="doc-type-tag">{doc.docTypeLabel}</span>
+                <button
+                  className="btn-link"
+                  onClick={() => downloadDocument(application.id, doc.id, doc.fileName)}
+                >
+                  {doc.fileName}
+                </button>
+                {doc.expired && (
+                  <span className="result-tag elevated">
+                    <span className="result-dot" aria-hidden="true" />
+                    Expired
+                  </span>
+                )}
+              </div>
+              <div className="document-meta muted">
+                {[
+                  doc.issuingAuthority && `Issued by ${doc.issuingAuthority}`,
+                  doc.documentNumber && `No. ${doc.documentNumber}`,
+                  doc.expiresOn && `Valid until ${new Date(doc.expiresOn).toLocaleDateString()}`,
+                  doc.fileSize && `${Math.round(doc.fileSize / 1024)} KB`,
+                ]
+                  .filter(Boolean)
+                  .join(" · ") || "No details recorded for this file."}
+              </div>
+            </div>
           ))}
         </div>
       </div>

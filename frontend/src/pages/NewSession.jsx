@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { createSession } from "../api/sessions";
 import { listParticipants } from "../api/participants";
+import LanguageSelect from "../components/LanguageSelect";
 
 const initialConsent = {
   recording: false,
@@ -18,6 +19,9 @@ export default function NewSession() {
   const [participants, setParticipants] = useState([]);
   const [participantsLoading, setParticipantsLoading] = useState(true);
   const [selectedParticipantId, setSelectedParticipantId] = useState("");
+  // Defaults to English, the only language with trained models today. Chosen
+  // here rather than detected from the audio: see LanguageSelect for why.
+  const [language, setLanguage] = useState("en");
   const [consent, setConsent] = useState(initialConsent);
   const [mode, setMode] = useState("upload"); // "upload" | "record"
   const [file, setFile] = useState(null);
@@ -142,7 +146,7 @@ export default function NewSession() {
 
     setSubmitting(true);
     try {
-      const session = await createSession(participantRef.trim(), file, consent);
+      const session = await createSession(participantRef.trim(), file, consent, language);
       navigate(`/sessions/${session.id}`);
     } catch (err) {
       setError(err.response?.data?.message || "Failed to create session.");
@@ -217,6 +221,11 @@ export default function NewSession() {
               )}
             </>
           )}
+
+          <label className="field-label" htmlFor="sessionLanguage">
+            Language of this interview
+          </label>
+          <LanguageSelect id="sessionLanguage" value={language} onChange={setLanguage} />
 
           {error && <div className="alert alert-error">{error}</div>}
           <button className="btn-primary" type="submit">

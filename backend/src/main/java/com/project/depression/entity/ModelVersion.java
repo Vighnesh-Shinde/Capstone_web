@@ -27,6 +27,17 @@ public class ModelVersion {
     @Column(nullable = false)
     private ModelModality modality;
 
+    /**
+     * Which language's pipeline these weights belong to.
+     *
+     * Training a Marathi model set is the same act as retraining the English
+     * one, so it goes through the same upload-and-activate door — that is what
+     * makes a new language a data problem rather than a release.
+     */
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private String language = "en";
+
     @Column(name = "version_label", nullable = false)
     private String versionLabel;
 

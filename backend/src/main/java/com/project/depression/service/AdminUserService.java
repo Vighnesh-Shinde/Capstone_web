@@ -1,6 +1,7 @@
 package com.project.depression.service;
 
 import com.project.depression.dto.AdminUserResponse;
+import com.project.depression.dto.SetVerificationRequest;
 import com.project.depression.dto.PageResponse;
 import com.project.depression.entity.Role;
 import com.project.depression.entity.User;
@@ -77,6 +78,34 @@ public class AdminUserService {
         };
     }
 
+    /**
+     * Record that an administrator has (re-)confirmed a counselor's credentials.
+     *
+     * Restricted to counselors: an admin account is seeded, holds no licence,
+     * and has nothing to verify — offering the action there would only invite
+     * a meaningless date onto a record.
+     */
+    @Transactional
+    public AdminUserResponse setVerification(UUID userId, SetVerificationRequest request, User admin) {
+        User user = find(userId);
+        if (user.getRole() != Role.COUNSELOR) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Only counselor accounts carry a credential verification date.");
+        }
+
+        user.setVerifiedUntil(request.verifiedUntil());
+        user.setVerifiedAt(java.time.Instant.now());
+        user.setVerifiedBy(admin.getId());
+        User saved = userRepository.save(user);
+
+        auditLogService.log(admin, "USER_VERIFICATION_SET", "USER", userId,
+                (request.verifiedUntil() == null
+                        ? "no review date"
+                        : "verified until " + request.verifiedUntil())
+                        + (request.note() == null || request.note().isBlank() ? "" : " — " + request.note()));
+        return toResponse(saved);
+    }
+
     @Transactional
     public AdminUserResponse suspend(UUID userId, User admin) {
         User user = find(userId);
@@ -113,6 +142,8 @@ public class AdminUserService {
         return new AdminUserResponse(
                 user.getId(), user.getName(), user.getEmail(), user.getUsername(),
                 user.getRole().name(), user.getStatus().name(),
+                com.project.depression.dto.ProfessionalProfileDto.from(user.getProfile()),
+                user.getVerifiedAt(), user.getVerifiedUntil(), user.isVerificationExpired(),
                 user.getCreatedAt(), user.getLastLoginAt(),
                 sessionRepository.countByCounselor(user)
         );

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { changePassword, getProfile, updateProfile } from "../api/profile";
 import { useAuth } from "../context/AuthContext";
+import ProfessionalDetailsForm from "../components/ProfessionalDetailsForm";
 
 const MIN_LENGTH = 10;
 
@@ -55,7 +56,14 @@ export default function Profile() {
     setDetailsMessage("");
     setSavingDetails(true);
     try {
-      const updated = await updateProfile({ name, username: username || null });
+      // Name and username save on their own, but the server takes the whole
+      // profile, so the professional fields have to ride along or saving a name
+      // would wipe an address.
+      const updated = await updateProfile({
+        ...(profile.profile ?? {}),
+        name,
+        username: username || null,
+      });
       setProfile(updated);
       updateCurrentUser({ name: updated.name, username: updated.username });
       setDetailsMessage("Profile updated.");
@@ -115,6 +123,7 @@ export default function Profile() {
       </header>
 
       <div className="grid-two">
+        <div className="stack">
         <form className="card" onSubmit={handleDetailsSubmit}>
           <h2>Details</h2>
 
@@ -154,6 +163,22 @@ export default function Profile() {
             {savingDetails ? "Saving…" : "Save details"}
           </button>
         </form>
+
+        {/* Counselors only. An admin account is seeded, holds no licence and
+            sees no participants, so a practice address on it would be noise. */}
+        {profile.role === "COUNSELOR" && (
+          <ProfessionalDetailsForm
+            profile={profile}
+            name={name}
+            username={username}
+            onSave={async (payload) => {
+              const updated = await updateProfile(payload);
+              setProfile(updated);
+              updateCurrentUser({ name: updated.name, username: updated.username });
+            }}
+          />
+        )}
+        </div>
 
         <div className="stack">
           <form className="card" onSubmit={handlePasswordSubmit}>
@@ -222,6 +247,28 @@ export default function Profile() {
                 <dt>Password last changed</dt>
                 <dd>{formatDate(profile.passwordChangedAt)}</dd>
               </div>
+              {profile.role === "COUNSELOR" && (
+                <>
+                  <div>
+                    <dt>Credentials verified</dt>
+                    <dd>{formatDate(profile.verifiedAt)}</dd>
+                  </div>
+                  <div>
+                    <dt>Next credential review</dt>
+                    <dd>
+                      {profile.verifiedUntil
+                        ? new Date(profile.verifiedUntil).toLocaleDateString()
+                        : "Not scheduled"}
+                      {profile.verificationExpired && (
+                        <span className="result-tag elevated">
+                          <span className="result-dot" aria-hidden="true" />
+                          Overdue
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </>
+              )}
             </dl>
           </div>
         </div>

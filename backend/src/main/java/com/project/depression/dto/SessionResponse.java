@@ -8,6 +8,11 @@ public record SessionResponse(
         UUID participantId,
         String participantRef,
         String status,
+        // The language the interview was conducted in, and its display name.
+        // Shown on the session and the report because a transcript in a
+        // language the reader doesn't speak is otherwise unexplained.
+        String language,
+        String languageName,
         String prediction,
         Double confidenceScore,
         String notes,

@@ -18,9 +18,10 @@ so this degrades gracefully with zero backend changes.
 
 import numpy as np
 
+from app.languages import DEFAULT_LANGUAGE, LanguageNotScorable
 from app.real import media_pipeline
 from app.real.audio_features import compute_audio_features
-from app.real.model_loader import Models
+from app.real.model_loader import Models, scoring_languages
 from app.real.text_features import compute_text_features
 from app.schemas import ExplanationItem, ProcessResponse
 
@@ -72,12 +73,22 @@ def _explain_linear_pipeline(bundle, raw_features: np.ndarray, modality: str, to
     return items
 
 
-def run_real_inference(session_id: str, video_path: str) -> ProcessResponse:
-    transcript = media_pipeline.process_video(video_path)
+def run_real_inference(
+    session_id: str,
+    video_path: str,
+    language: str = DEFAULT_LANGUAGE,
+) -> ProcessResponse:
+    # Checked before a frame is decoded. Transcribing an hour of Marathi and
+    # only then admitting there is nothing to score it with wastes the
+    # counselor's time and the participant's; refusing up front does not.
+    if language not in scoring_languages():
+        raise LanguageNotScorable(language)
+
+    transcript = media_pipeline.process_video(video_path, language=language)
     try:
-        text_bundle = Models.text()
-        audio_bundle = Models.audio()
-        fusion_bundle = Models.fusion()
+        text_bundle = Models.text(language)
+        audio_bundle = Models.audio(language)
+        fusion_bundle = Models.fusion(language)
 
         text_raw = compute_text_features(transcript.participant_segments)
         audio_raw = compute_audio_features(transcript.wav_path, transcript)

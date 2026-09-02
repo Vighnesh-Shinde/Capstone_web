@@ -34,6 +34,20 @@ public class Session {
     @JoinColumn(name = "participant_id", nullable = false)
     private Participant participant;
 
+    /**
+     * BCP-47 code the interview was conducted in, chosen by the counselor.
+     *
+     * Recorded on the session rather than detected at analysis time: Whisper's
+     * auto-detect reads the first ~30 seconds, which in a counselling session
+     * is small talk, and it is unreliable on code-switched speech — so the same
+     * recording could transcribe two different ways on two runs. It also
+     * decides whether the session can be scored at all; see the ML service's
+     * languages.py.
+     */
+    @Column(nullable = false, length = 10)
+    @Builder.Default
+    private String language = "en";
+
     @Column(name = "video_path")
     private String videoPath;
 

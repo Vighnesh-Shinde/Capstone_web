@@ -6,6 +6,9 @@ import java.util.UUID;
 public record ModelVersionResponse(
         UUID id,
         String modality,
+        /** BCP-47 code these weights serve; 'en' for everything uploaded before languages existed. */
+        String language,
+        String languageName,
         String versionLabel,
         String fileName,
         String sha256,

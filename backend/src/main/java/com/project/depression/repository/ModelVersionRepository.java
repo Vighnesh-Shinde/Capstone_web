@@ -12,11 +12,21 @@ public interface ModelVersionRepository extends JpaRepository<ModelVersion, UUID
 
     List<ModelVersion> findAllByOrderByUploadedAtDesc();
 
+    List<ModelVersion> findByLanguageOrderByUploadedAtDesc(String language);
+
     List<ModelVersion> findByModalityOrderByUploadedAtDesc(ModelModality modality);
 
-    Optional<ModelVersion> findByModalityAndActiveIsTrue(ModelModality modality);
+    List<ModelVersion> findByLanguageAndModalityOrderByUploadedAtDesc(String language, ModelModality modality);
+
+    /**
+     * The serving model for one modality in one language. Language is part of
+     * the key because activating a Marathi text model must not deactivate the
+     * English one — they serve different sessions.
+     */
+    Optional<ModelVersion> findByModalityAndLanguageAndActiveIsTrue(ModelModality modality, String language);
 
     List<ModelVersion> findByActiveIsTrue();
 
-    boolean existsByModalityAndVersionLabel(ModelModality modality, String versionLabel);
+    boolean existsByModalityAndLanguageAndVersionLabel(
+            ModelModality modality, String language, String versionLabel);
 }

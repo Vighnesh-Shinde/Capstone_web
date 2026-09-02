@@ -100,12 +100,22 @@ def extract_audio(video_path: str) -> str:
     return wav_path
 
 
-def transcribe_with_timestamps(wav_path: str) -> tuple[str, list[Word]]:
-    """faster-whisper: transcript + word-level timestamps (no speaker info yet)."""
+def transcribe_with_timestamps(wav_path: str, language: str = "en") -> tuple[str, list[Word]]:
+    """
+    faster-whisper: transcript + word-level timestamps (no speaker info yet).
+
+    The language is passed explicitly rather than left to Whisper's
+    auto-detection. Auto-detection decides from the first ~30 seconds, which in
+    a counselling session is small talk, and it copes badly with code-switching
+    — a Hinglish opening can be detected as either language, so the same
+    recording could transcribe differently on two runs. The counselor selects
+    the language when creating the session; that answer is more reliable than
+    a guess, and it makes the transcript reproducible.
+    """
     from faster_whisper import WhisperModel
 
     model = WhisperModel(WHISPER_MODEL_SIZE, device="cpu", compute_type="int8")
-    segments, _info = model.transcribe(wav_path, word_timestamps=True)
+    segments, _info = model.transcribe(wav_path, word_timestamps=True, language=language)
 
     words: list[Word] = []
     full_text_parts: list[str] = []
@@ -197,7 +207,7 @@ def identify_participant_speaker(segments: list[Segment]) -> tuple[str, str | No
     return participant, counselor
 
 
-def process_video(video_path: str) -> DiarizedTranscript:
+def process_video(video_path: str, language: str = "en") -> DiarizedTranscript:
     """
     Full pipeline: video -> audio -> transcript+timestamps -> diarization ->
     participant isolation. Does NOT delete the extracted wav file — the
@@ -206,7 +216,7 @@ def process_video(video_path: str) -> DiarizedTranscript:
     """
     wav_path = extract_audio(video_path)
     try:
-        full_text, words = transcribe_with_timestamps(wav_path)
+        full_text, words = transcribe_with_timestamps(wav_path, language=language)
         turns = diarize(wav_path)
         _assign_speakers_to_words(words, turns)
         segments = _group_into_segments(words)

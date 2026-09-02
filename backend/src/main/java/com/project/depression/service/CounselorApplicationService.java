@@ -27,6 +27,7 @@ public class CounselorApplicationService {
     private final PasswordEncoder passwordEncoder;
     private final FileStorageService fileStorageService;
     private final AuditLogService auditLogService;
+    private final CountryCatalogService countryCatalog;
 
     public CounselorApplicationService(
             CounselorApplicationRepository applicationRepository,
@@ -34,7 +35,8 @@ public class CounselorApplicationService {
             UserRepository userRepository,
             PasswordEncoder passwordEncoder,
             FileStorageService fileStorageService,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            CountryCatalogService countryCatalog
     ) {
         this.applicationRepository = applicationRepository;
         this.documentRepository = documentRepository;
@@ -42,45 +44,73 @@ public class CounselorApplicationService {
         this.passwordEncoder = passwordEncoder;
         this.fileStorageService = fileStorageService;
         this.auditLogService = auditLogService;
+        this.countryCatalog = countryCatalog;
     }
 
     @Transactional
-    public ApplicationSubmitResponse submit(
-            String fullName, String email, String rawPassword, String phone, String organization,
-            String professionalRole, String qualification, String experience,
-            String registrationNumber, String additionalInfo, List<MultipartFile> documents
-    ) {
+    public ApplicationSubmitResponse submit(CounselorApplicationForm form, List<DocumentMetadata> documents) {
+        String email = form.email().trim().toLowerCase();
+
         if (userRepository.existsByEmail(email) || applicationRepository.existsByEmail(email)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "An account or application already exists for this email");
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "An account or application already exists for this email");
         }
 
+        String country = countryCatalog.requireValidCountry(form.countryCode());
+
         CounselorApplication application = CounselorApplication.builder()
-                .fullName(fullName)
+                .fullName(form.fullName().trim())
                 .email(email)
-                .passwordHash(passwordEncoder.encode(rawPassword))
-                .phone(phone)
-                .organization(organization)
-                .professionalRole(professionalRole)
-                .qualification(qualification)
-                .experience(experience)
-                .registrationNumber(registrationNumber)
-                .additionalInfo(additionalInfo)
+                .passwordHash(passwordEncoder.encode(form.password()))
+                .experience(form.experience())
+                .additionalInfo(form.additionalInfo())
+                .profile(ProfessionalProfile.builder()
+                        .countryCode(country)
+                        .phoneDialCode(form.phoneDialCode())
+                        .phoneNational(form.phoneNational())
+                        // Validated and canonicalised here so a bad number is
+                        // rejected at submission, while the applicant is still
+                        // looking at the form, rather than discovered by an
+                        // admin trying to ring them weeks later.
+                        .phoneE164(countryCatalog.toE164(form.phoneDialCode(), form.phoneNational()))
+                        .addressLine1(form.addressLine1())
+                        .addressLine2(form.addressLine2())
+                        .city(form.city())
+                        .stateRegion(form.stateRegion())
+                        .postalCode(form.postalCode())
+                        .gender(form.gender())
+                        .dateOfBirth(form.dateOfBirth())
+                        .timezone(form.timezone())
+                        .practiceLanguages(form.practiceLanguages())
+                        .organization(form.organization())
+                        .professionalRole(form.professionalRole())
+                        .qualification(form.qualification())
+                        .registrationNumber(form.registrationNumber())
+                        .licenceAuthority(form.licenceAuthority())
+                        .licenceExpiresOn(form.licenceExpiresOn())
+                        .yearsOfExperience(form.yearsOfExperience())
+                        .professionalWebsite(form.professionalWebsite())
+                        .build())
                 .status(ApplicationStatus.PENDING)
                 .build();
         application = applicationRepository.save(application);
 
-        if (documents != null) {
-            for (MultipartFile doc : documents) {
-                if (doc == null || doc.isEmpty()) continue;
-                String path = fileStorageService.storeApplicationDocument(application.getId(), doc);
-                VerificationDocument document = VerificationDocument.builder()
-                        .application(application)
-                        .fileName(doc.getOriginalFilename())
-                        .filePath(path)
-                        .contentType(doc.getContentType())
-                        .build();
-                documentRepository.save(document);
-            }
+        for (DocumentMetadata meta : documents) {
+            MultipartFile file = meta.file();
+            if (file == null || file.isEmpty()) continue;
+
+            String path = fileStorageService.storeApplicationDocument(application.getId(), file);
+            documentRepository.save(VerificationDocument.builder()
+                    .application(application)
+                    .fileName(file.getOriginalFilename())
+                    .filePath(path)
+                    .contentType(file.getContentType())
+                    .fileSize(file.getSize())
+                    .docType(DocumentType.parse(meta.docType()))
+                    .issuingAuthority(meta.issuingAuthority())
+                    .documentNumber(meta.documentNumber())
+                    .expiresOn(meta.expiresOn())
+                    .build());
         }
 
         auditLogService.log(null, "COUNSELOR_APPLICATION_SUBMITTED", "COUNSELOR_APPLICATION", application.getId(), email);
@@ -114,6 +144,15 @@ public class CounselorApplicationService {
                 .passwordHash(application.getPasswordHash())
                 .role(Role.COUNSELOR)
                 .applicationId(application.getId())
+                // Copied, not shared — see ProfessionalProfile.copy().
+                .profile(application.profileOrEmpty().copy())
+                .verifiedAt(java.time.Instant.now())
+                // Verification cannot outlive the licence it was based on. When
+                // no expiry was supplied there is nothing to derive, so the
+                // account simply carries no review date rather than a made-up
+                // one; an administrator can set it on the counselor screen.
+                .verifiedUntil(application.profileOrEmpty().getLicenceExpiresOn())
+                .verifiedBy(admin.getId())
                 .build();
         counselor = userRepository.save(counselor);
 
@@ -187,13 +226,22 @@ public class CounselorApplicationService {
 
     private CounselorApplicationResponse toResponse(CounselorApplication a) {
         List<VerificationDocumentResponse> docs = a.getDocuments().stream()
-                .map(d -> new VerificationDocumentResponse(d.getId(), d.getFileName(), d.getContentType(), d.getUploadedAt()))
+                .map(d -> new VerificationDocumentResponse(
+                        d.getId(), d.getFileName(), d.getContentType(),
+                        d.getDocType().name(), d.getDocType().label(),
+                        d.getIssuingAuthority(), d.getDocumentNumber(),
+                        d.getIssuedOn(), d.getExpiresOn(), d.isExpired(),
+                        d.getFileSize(), d.getUploadedAt()))
                 .toList();
 
         return new CounselorApplicationResponse(
-                a.getId(), a.getFullName(), a.getEmail(), a.getPhone(), a.getOrganization(),
-                a.getProfessionalRole(), a.getQualification(), a.getExperience(), a.getRegistrationNumber(),
-                a.getAdditionalInfo(), a.getStatus().name(), a.getRejectionReason(), a.getSubmittedAt(),
+                a.getId(), a.getFullName(), a.getEmail(),
+                // The pre-split free-text phone, still shown for applications
+                // submitted before the number was captured structurally.
+                a.getPhone(),
+                a.getExperience(), a.getAdditionalInfo(),
+                ProfessionalProfileDto.from(a.getProfile()),
+                a.getStatus().name(), a.getRejectionReason(), a.getSubmittedAt(),
                 a.getReviewedAt(), a.getReviewedBy() == null ? null : a.getReviewedBy().getName(), docs
         );
     }

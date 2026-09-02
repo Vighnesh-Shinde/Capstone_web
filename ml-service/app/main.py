@@ -48,14 +48,39 @@ def health():
     return {"status": "ok", "real_models": USE_REAL_MODELS}
 
 
+@app.get("/languages")
+def languages():
+    """
+    Which languages can be transcribed, and which can actually be scored.
+
+    Served from here rather than duplicated in the backend or the frontend, so
+    there is exactly one place that knows the answer — and so activating a new
+    language's models updates every screen at once. In mock mode every known
+    language reports as scorable: nothing real is being computed either way,
+    and pretending otherwise would make the mock unusable for UI work.
+    """
+    from app.languages import LANGUAGES, catalog
+    from dataclasses import asdict
+
+    if not USE_REAL_MODELS:
+        return {"languages": [{**asdict(lang), "scoring": True} for lang in LANGUAGES]}
+    return {"languages": catalog()}
+
+
 @app.post("/process", response_model=ProcessResponse)
 def process(request: ProcessRequest) -> ProcessResponse:
     if not USE_REAL_MODELS:
         return run_inference(request.session_id, request.video_path)
 
+    from app.languages import LanguageNotScorable
     from app.real.real_inference import run_real_inference
     try:
-        return run_real_inference(request.session_id, request.video_path)
+        return run_real_inference(request.session_id, request.video_path, request.language)
+    except LanguageNotScorable as e:
+        # 422, not 500: the request was well formed and the service is healthy.
+        # This is a refusal with a reason, and the reason is worth showing the
+        # counselor verbatim rather than collapsing into "processing failed".
+        raise HTTPException(status_code=422, detail=str(e))
     except NotImplementedError as e:
         # Feature extraction stubs not filled in yet — see PENDING_FROM_FRIEND.md.
         # Mapped to 503 (not 500): this is a known, temporary "not ready" state,

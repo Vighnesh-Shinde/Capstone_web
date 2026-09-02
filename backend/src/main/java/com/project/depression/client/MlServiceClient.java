@@ -38,13 +38,29 @@ public class MlServiceClient {
         this.adminToken = adminToken;
     }
 
-    public MlProcessResponse process(String sessionId, String videoPath) {
-        MlProcessRequest request = new MlProcessRequest(sessionId, videoPath);
+    public MlProcessResponse process(String sessionId, String videoPath, String language) {
+        MlProcessRequest request = new MlProcessRequest(sessionId, videoPath, language);
         return restClient.post()
                 .uri("/process")
                 .body(request)
                 .retrieve()
                 .body(MlProcessResponse.class);
+    }
+
+    /**
+     * The language catalog, read from the ML service rather than duplicated here.
+     *
+     * The ML service is the only component that can answer truthfully, because
+     * "can this be scored" means "are the weights on disk", and the weights are
+     * on its disk. Mirroring the list in Java would give two sources of truth
+     * that disagree the moment an admin activates a new language.
+     */
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> languages() {
+        return restClient.get()
+                .uri("/languages")
+                .retrieve()
+                .body(Map.class);
     }
 
     /**

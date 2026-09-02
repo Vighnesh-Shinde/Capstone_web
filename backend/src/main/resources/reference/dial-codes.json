@@ -1,0 +1,1227 @@
+{
+ "AC": {
+  "dial": "247",
+  "minLen": 5,
+  "maxLen": 6
+ },
+ "AD": {
+  "dial": "376",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "AE": {
+  "dial": "971",
+  "minLen": 5,
+  "maxLen": 12
+ },
+ "AF": {
+  "dial": "93",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "AG": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "AI": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "AL": {
+  "dial": "355",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "AM": {
+  "dial": "374",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "AO": {
+  "dial": "244",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "AR": {
+  "dial": "54",
+  "minLen": 10,
+  "maxLen": 11
+ },
+ "AS": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "AT": {
+  "dial": "43",
+  "minLen": 4,
+  "maxLen": 13
+ },
+ "AU": {
+  "dial": "61",
+  "minLen": 5,
+  "maxLen": 12
+ },
+ "AW": {
+  "dial": "297",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "AX": {
+  "dial": "358",
+  "minLen": 5,
+  "maxLen": 12
+ },
+ "AZ": {
+  "dial": "994",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "BA": {
+  "dial": "387",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "BB": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "BD": {
+  "dial": "880",
+  "minLen": 6,
+  "maxLen": 10
+ },
+ "BE": {
+  "dial": "32",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "BF": {
+  "dial": "226",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "BG": {
+  "dial": "359",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "BH": {
+  "dial": "973",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "BI": {
+  "dial": "257",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "BJ": {
+  "dial": "229",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "BL": {
+  "dial": "590",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "BM": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "BN": {
+  "dial": "673",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "BO": {
+  "dial": "591",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "BQ": {
+  "dial": "599",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "BR": {
+  "dial": "55",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "BS": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "BT": {
+  "dial": "975",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "BW": {
+  "dial": "267",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "BY": {
+  "dial": "375",
+  "minLen": 6,
+  "maxLen": 11
+ },
+ "BZ": {
+  "dial": "501",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "CA": {
+  "dial": "1",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "CC": {
+  "dial": "61",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "CD": {
+  "dial": "243",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "CF": {
+  "dial": "236",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "CG": {
+  "dial": "242",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "CH": {
+  "dial": "41",
+  "minLen": 9,
+  "maxLen": 12
+ },
+ "CI": {
+  "dial": "225",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "CK": {
+  "dial": "682",
+  "minLen": 5,
+  "maxLen": 5
+ },
+ "CL": {
+  "dial": "56",
+  "minLen": 9,
+  "maxLen": 11
+ },
+ "CM": {
+  "dial": "237",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "CN": {
+  "dial": "86",
+  "minLen": 7,
+  "maxLen": 12
+ },
+ "CO": {
+  "dial": "57",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "CR": {
+  "dial": "506",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "CU": {
+  "dial": "53",
+  "minLen": 6,
+  "maxLen": 10
+ },
+ "CV": {
+  "dial": "238",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "CW": {
+  "dial": "599",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "CX": {
+  "dial": "61",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "CY": {
+  "dial": "357",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "CZ": {
+  "dial": "420",
+  "minLen": 9,
+  "maxLen": 12
+ },
+ "DE": {
+  "dial": "49",
+  "minLen": 4,
+  "maxLen": 15
+ },
+ "DJ": {
+  "dial": "253",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "DK": {
+  "dial": "45",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "DM": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "DO": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "DZ": {
+  "dial": "213",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "EC": {
+  "dial": "593",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "EE": {
+  "dial": "372",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "EG": {
+  "dial": "20",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "EH": {
+  "dial": "212",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "ER": {
+  "dial": "291",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "ES": {
+  "dial": "34",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "ET": {
+  "dial": "251",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "FI": {
+  "dial": "358",
+  "minLen": 5,
+  "maxLen": 12
+ },
+ "FJ": {
+  "dial": "679",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "FK": {
+  "dial": "500",
+  "minLen": 5,
+  "maxLen": 5
+ },
+ "FM": {
+  "dial": "691",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "FO": {
+  "dial": "298",
+  "minLen": 6,
+  "maxLen": 6
+ },
+ "FR": {
+  "dial": "33",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "GA": {
+  "dial": "241",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "GB": {
+  "dial": "44",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "GD": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "GE": {
+  "dial": "995",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "GF": {
+  "dial": "594",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "GG": {
+  "dial": "44",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "GH": {
+  "dial": "233",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "GI": {
+  "dial": "350",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "GL": {
+  "dial": "299",
+  "minLen": 6,
+  "maxLen": 6
+ },
+ "GM": {
+  "dial": "220",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "GN": {
+  "dial": "224",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "GP": {
+  "dial": "590",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "GQ": {
+  "dial": "240",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "GR": {
+  "dial": "30",
+  "minLen": 10,
+  "maxLen": 12
+ },
+ "GT": {
+  "dial": "502",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "GU": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "GW": {
+  "dial": "245",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "GY": {
+  "dial": "592",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "HK": {
+  "dial": "852",
+  "minLen": 5,
+  "maxLen": 11
+ },
+ "HN": {
+  "dial": "504",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "HR": {
+  "dial": "385",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "HT": {
+  "dial": "509",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "HU": {
+  "dial": "36",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "ID": {
+  "dial": "62",
+  "minLen": 7,
+  "maxLen": 17
+ },
+ "IE": {
+  "dial": "353",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "IL": {
+  "dial": "972",
+  "minLen": 7,
+  "maxLen": 12
+ },
+ "IM": {
+  "dial": "44",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "IN": {
+  "dial": "91",
+  "minLen": 8,
+  "maxLen": 13
+ },
+ "IO": {
+  "dial": "246",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "IQ": {
+  "dial": "964",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "IR": {
+  "dial": "98",
+  "minLen": 4,
+  "maxLen": 10
+ },
+ "IS": {
+  "dial": "354",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "IT": {
+  "dial": "39",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "JE": {
+  "dial": "44",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "JM": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "JO": {
+  "dial": "962",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "JP": {
+  "dial": "81",
+  "minLen": 8,
+  "maxLen": 17
+ },
+ "KE": {
+  "dial": "254",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "KG": {
+  "dial": "996",
+  "minLen": 9,
+  "maxLen": 10
+ },
+ "KH": {
+  "dial": "855",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "KI": {
+  "dial": "686",
+  "minLen": 5,
+  "maxLen": 8
+ },
+ "KM": {
+  "dial": "269",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "KN": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "KP": {
+  "dial": "850",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "KR": {
+  "dial": "82",
+  "minLen": 5,
+  "maxLen": 14
+ },
+ "KW": {
+  "dial": "965",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "KY": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "KZ": {
+  "dial": "7",
+  "minLen": 10,
+  "maxLen": 14
+ },
+ "LA": {
+  "dial": "856",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "LB": {
+  "dial": "961",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "LC": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "LI": {
+  "dial": "423",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "LK": {
+  "dial": "94",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "LR": {
+  "dial": "231",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "LS": {
+  "dial": "266",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "LT": {
+  "dial": "370",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "LU": {
+  "dial": "352",
+  "minLen": 4,
+  "maxLen": 11
+ },
+ "LV": {
+  "dial": "371",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "LY": {
+  "dial": "218",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "MA": {
+  "dial": "212",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "MC": {
+  "dial": "377",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "MD": {
+  "dial": "373",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "ME": {
+  "dial": "382",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "MF": {
+  "dial": "590",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "MG": {
+  "dial": "261",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "MH": {
+  "dial": "692",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "MK": {
+  "dial": "389",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "ML": {
+  "dial": "223",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "MM": {
+  "dial": "95",
+  "minLen": 6,
+  "maxLen": 10
+ },
+ "MN": {
+  "dial": "976",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "MO": {
+  "dial": "853",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "MP": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "MQ": {
+  "dial": "596",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "MR": {
+  "dial": "222",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "MS": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "MT": {
+  "dial": "356",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "MU": {
+  "dial": "230",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "MV": {
+  "dial": "960",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "MW": {
+  "dial": "265",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "MX": {
+  "dial": "52",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "MY": {
+  "dial": "60",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "MZ": {
+  "dial": "258",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "NA": {
+  "dial": "264",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "NC": {
+  "dial": "687",
+  "minLen": 6,
+  "maxLen": 6
+ },
+ "NE": {
+  "dial": "227",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "NF": {
+  "dial": "672",
+  "minLen": 6,
+  "maxLen": 6
+ },
+ "NG": {
+  "dial": "234",
+  "minLen": 10,
+  "maxLen": 14
+ },
+ "NI": {
+  "dial": "505",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "NL": {
+  "dial": "31",
+  "minLen": 5,
+  "maxLen": 11
+ },
+ "NO": {
+  "dial": "47",
+  "minLen": 5,
+  "maxLen": 8
+ },
+ "NP": {
+  "dial": "977",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "NR": {
+  "dial": "674",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "NU": {
+  "dial": "683",
+  "minLen": 4,
+  "maxLen": 7
+ },
+ "NZ": {
+  "dial": "64",
+  "minLen": 5,
+  "maxLen": 10
+ },
+ "OM": {
+  "dial": "968",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "PA": {
+  "dial": "507",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "PE": {
+  "dial": "51",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "PF": {
+  "dial": "689",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "PG": {
+  "dial": "675",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "PH": {
+  "dial": "63",
+  "minLen": 6,
+  "maxLen": 13
+ },
+ "PK": {
+  "dial": "92",
+  "minLen": 8,
+  "maxLen": 12
+ },
+ "PL": {
+  "dial": "48",
+  "minLen": 6,
+  "maxLen": 10
+ },
+ "PM": {
+  "dial": "508",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "PR": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "PS": {
+  "dial": "970",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "PT": {
+  "dial": "351",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "PW": {
+  "dial": "680",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "PY": {
+  "dial": "595",
+  "minLen": 6,
+  "maxLen": 11
+ },
+ "QA": {
+  "dial": "974",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "RE": {
+  "dial": "262",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "RO": {
+  "dial": "40",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "RS": {
+  "dial": "381",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "RU": {
+  "dial": "7",
+  "minLen": 10,
+  "maxLen": 14
+ },
+ "RW": {
+  "dial": "250",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "SA": {
+  "dial": "966",
+  "minLen": 9,
+  "maxLen": 10
+ },
+ "SB": {
+  "dial": "677",
+  "minLen": 5,
+  "maxLen": 7
+ },
+ "SC": {
+  "dial": "248",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "SD": {
+  "dial": "249",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "SE": {
+  "dial": "46",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "SG": {
+  "dial": "65",
+  "minLen": 8,
+  "maxLen": 11
+ },
+ "SH": {
+  "dial": "290",
+  "minLen": 4,
+  "maxLen": 5
+ },
+ "SI": {
+  "dial": "386",
+  "minLen": 5,
+  "maxLen": 8
+ },
+ "SJ": {
+  "dial": "47",
+  "minLen": 5,
+  "maxLen": 8
+ },
+ "SK": {
+  "dial": "421",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "SL": {
+  "dial": "232",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "SM": {
+  "dial": "378",
+  "minLen": 8,
+  "maxLen": 10
+ },
+ "SN": {
+  "dial": "221",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "SO": {
+  "dial": "252",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "SR": {
+  "dial": "597",
+  "minLen": 6,
+  "maxLen": 7
+ },
+ "SS": {
+  "dial": "211",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "ST": {
+  "dial": "239",
+  "minLen": 7,
+  "maxLen": 7
+ },
+ "SV": {
+  "dial": "503",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "SX": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "SY": {
+  "dial": "963",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "SZ": {
+  "dial": "268",
+  "minLen": 8,
+  "maxLen": 9
+ },
+ "TA": {
+  "dial": "290",
+  "minLen": 4,
+  "maxLen": 4
+ },
+ "TC": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "TD": {
+  "dial": "235",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "TG": {
+  "dial": "228",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "TH": {
+  "dial": "66",
+  "minLen": 8,
+  "maxLen": 13
+ },
+ "TJ": {
+  "dial": "992",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "TK": {
+  "dial": "690",
+  "minLen": 4,
+  "maxLen": 7
+ },
+ "TL": {
+  "dial": "670",
+  "minLen": 7,
+  "maxLen": 8
+ },
+ "TM": {
+  "dial": "993",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "TN": {
+  "dial": "216",
+  "minLen": 8,
+  "maxLen": 8
+ },
+ "TO": {
+  "dial": "676",
+  "minLen": 5,
+  "maxLen": 7
+ },
+ "TR": {
+  "dial": "90",
+  "minLen": 7,
+  "maxLen": 13
+ },
+ "TT": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "TV": {
+  "dial": "688",
+  "minLen": 5,
+  "maxLen": 7
+ },
+ "TW": {
+  "dial": "886",
+  "minLen": 7,
+  "maxLen": 11
+ },
+ "TZ": {
+  "dial": "255",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "UA": {
+  "dial": "380",
+  "minLen": 9,
+  "maxLen": 10
+ },
+ "UG": {
+  "dial": "256",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "US": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "UY": {
+  "dial": "598",
+  "minLen": 4,
+  "maxLen": 13
+ },
+ "UZ": {
+  "dial": "998",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "VA": {
+  "dial": "39",
+  "minLen": 6,
+  "maxLen": 12
+ },
+ "VC": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "VE": {
+  "dial": "58",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "VG": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "VI": {
+  "dial": "1",
+  "minLen": 10,
+  "maxLen": 10
+ },
+ "VN": {
+  "dial": "84",
+  "minLen": 7,
+  "maxLen": 10
+ },
+ "VU": {
+  "dial": "678",
+  "minLen": 5,
+  "maxLen": 7
+ },
+ "WF": {
+  "dial": "681",
+  "minLen": 6,
+  "maxLen": 9
+ },
+ "WS": {
+  "dial": "685",
+  "minLen": 5,
+  "maxLen": 10
+ },
+ "XK": {
+  "dial": "383",
+  "minLen": 8,
+  "maxLen": 12
+ },
+ "YE": {
+  "dial": "967",
+  "minLen": 7,
+  "maxLen": 9
+ },
+ "YT": {
+  "dial": "262",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "ZA": {
+  "dial": "27",
+  "minLen": 5,
+  "maxLen": 10
+ },
+ "ZM": {
+  "dial": "260",
+  "minLen": 9,
+  "maxLen": 9
+ },
+ "ZW": {
+  "dial": "263",
+  "minLen": 7,
+  "maxLen": 10
+ }
+}

@@ -5,6 +5,8 @@ import {
   revertModelToDefault,
   uploadModelVersion,
 } from "../../api/admin";
+import { getLanguages } from "../../api/reference";
+import useReferenceData from "../../hooks/useReferenceData";
 
 const MODALITIES = [
   {
@@ -37,7 +39,12 @@ export default function AdminModels() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
+  const { data: allLanguages } = useReferenceData(getLanguages);
   const [modality, setModality] = useState("TEXT");
+  // Which language's pipeline this upload belongs to. Defaults to English
+  // because replacing the English models is still the common case; picking any
+  // other language here is what bootstraps that language into being scorable.
+  const [language, setLanguage] = useState("en");
   const [file, setFile] = useState(null);
   const [versionLabel, setVersionLabel] = useState("");
   const [notes, setNotes] = useState("");
@@ -67,9 +74,9 @@ export default function AdminModels() {
     setError("");
     setNotice("");
     try {
-      const created = await uploadModelVersion({ modality, file, versionLabel, notes });
+      const created = await uploadModelVersion({ modality, language, file, versionLabel, notes });
       setNotice(
-        `Uploaded ${created.modality} version "${created.versionLabel}" — ` +
+        `Uploaded ${created.languageName} ${created.modality} version "${created.versionLabel}" — ` +
           `${created.featureCount} features, threshold ${created.threshold}. ` +
           `It is stored but not yet serving; activate it when you're ready.`
       );
@@ -86,11 +93,13 @@ export default function AdminModels() {
   }
 
   async function handleActivate(version) {
-    const active = versions.find((v) => v.modality === version.modality && v.active);
+    const active = versions.find(
+      (v) => v.modality === version.modality && v.language === version.language && v.active
+    );
     const message = active
       ? `Switch the ${version.modality} model from "${active.versionLabel}" to "${version.versionLabel}"?\n\n` +
         `All new sessions will be analysed with the new weights immediately. Reports already produced are unchanged.`
-      : `Activate "${version.versionLabel}" as the ${version.modality} model?`;
+      : `Activate "${version.versionLabel}" as the ${version.languageName} ${version.modality} model?`;
 
     if (!window.confirm(message)) return;
 
@@ -99,7 +108,9 @@ export default function AdminModels() {
     setNotice("");
     try {
       await activateModelVersion(version.id);
-      setNotice(`${version.modality} is now serving "${version.versionLabel}".`);
+      setNotice(
+        `${version.languageName} ${version.modality} is now serving "${version.versionLabel}".`
+      );
       await load();
     } catch (err) {
       setError(err.response?.data?.message || "Activation failed.");
@@ -134,6 +145,15 @@ export default function AdminModels() {
 
   const selected = MODALITIES.find((m) => m.value === modality);
 
+  // English always appears, because it has built-in weights whether or not
+  // anything was ever uploaded. Every other language appears only once it has
+  // at least one uploaded version — an admin does not need twenty empty
+  // Swahili cards to tell them Swahili has no models.
+  const languagesWithUploads = new Set(versions.map((v) => v.language));
+  const installedLanguages = allLanguages.filter(
+    (l) => l.code === "en" || languagesWithUploads.has(l.code)
+  );
+
   return (
     <div className="page">
       <header className="page-header">
@@ -154,39 +174,89 @@ export default function AdminModels() {
 
       {/* Current state first: "what is serving right now" is the question an
           operator opens this page to answer. */}
-      <div className="stat-row">
-        {MODALITIES.map((m) => {
-          const active = versions.find((v) => v.modality === m.value && v.active);
-          return (
-            <div key={m.value} className="stat-card">
-              <span className="stat-label">{m.label} · {m.features} features</span>
-              <span className="stat-value model-active-label">
-                {active ? active.versionLabel : "Built-in default"}
-              </span>
-              <span className="muted small">
-                {active
-                  ? `Activated ${formatDateTime(active.activatedAt)}`
-                  : "Shipped with the project — no upload yet"}
-              </span>
-              {active && (
-                <button
-                  className="btn-link danger revert-link"
-                  disabled={busyId === m.value}
-                  onClick={() => handleRevert(m.value, active.versionLabel)}
-                >
-                  Revert to built-in
-                </button>
-              )}
+      {/* One block per language that has anything uploaded, plus English,
+          which always exists because it ships with built-in weights. */}
+      {installedLanguages.map((lang) => (
+        <section key={lang.code} className="model-language-block">
+          <h2 className="model-language-heading">
+            {lang.name}
+            {lang.code === "en" && <span className="tag-active">built-in</span>}
+          </h2>
+
+          <div className="stat-row">
+            {MODALITIES.map((m) => {
+              const active = versions.find(
+                (v) => v.modality === m.value && v.language === lang.code && v.active
+              );
+              const busyKey = `${lang.code}:${m.value}`;
+              return (
+                <div key={busyKey} className="stat-card">
+                  <span className="stat-label">{m.label} · {m.features} features</span>
+                  <span className="stat-value model-active-label">
+                    {active
+                      ? active.versionLabel
+                      : lang.code === "en"
+                        ? "Built-in default"
+                        : "Not installed"}
+                  </span>
+                  <span className="muted small">
+                    {active
+                      ? `Activated ${formatDateTime(active.activatedAt)}`
+                      : lang.code === "en"
+                        ? "Shipped with the project — no upload yet"
+                        : "No model activated for this language"}
+                  </span>
+                  {active && (
+                    <button
+                      className="btn-link danger revert-link"
+                      disabled={busyId === busyKey}
+                      onClick={() => handleRevert(m.value, lang.code, active.versionLabel)}
+                    >
+                      Revert to built-in
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* A language is only usable when all three stages are present.
+              Saying so here is what stops an admin uploading one file and
+              wondering why sessions still refuse to run. */}
+          {lang.code !== "en" && !lang.scoring && (
+            <div className="alert alert-warning">
+              {lang.name} is not yet available for sessions. All three stages — text,
+              audio and fusion — need an activated model before counselors can select
+              it. English models are never substituted in.
             </div>
-          );
-        })}
-      </div>
+          )}
+        </section>
+      ))}
 
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
 
       <form className="card" onSubmit={handleUpload}>
         <h2>Upload a new version</h2>
+
+        <label className="field-label" htmlFor="model-language">Language</label>
+        <select
+          id="model-language"
+          className="search-input"
+          value={language}
+          onChange={(e) => setLanguage(e.target.value)}
+        >
+          {allLanguages.map((l) => (
+            <option key={l.code} value={l.code}>
+              {l.name}
+              {l.scoring ? "" : " — no models yet"}
+            </option>
+          ))}
+        </select>
+        <p className="hint">
+          Which language pipeline these weights serve. Uploading all three stages for a
+          new language is what makes that language selectable when creating a session.
+        </p>
 
         <label className="field-label" htmlFor="modality">Stage</label>
         <select
@@ -261,6 +331,7 @@ export default function AdminModels() {
           <table>
             <thead>
               <tr>
+                <th>Language</th>
                 <th>Stage</th>
                 <th>Version</th>
                 <th>Features</th>
@@ -273,6 +344,7 @@ export default function AdminModels() {
             <tbody>
               {versions.map((v) => (
                 <tr key={v.id} className={v.active ? "row-active" : undefined}>
+                  <td>{v.languageName}</td>
                   <td>{v.modality}</td>
                   <td className="cell-strong">
                     {v.versionLabel}

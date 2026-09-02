@@ -84,6 +84,19 @@
             <optional>true</optional>
         </dependency>
 
+        <!--
+            No phone-number library. Dial codes and per-country number lengths
+            are generated data in resources/reference/dial-codes.json (extracted
+            from libphonenumber's own metadata, not typed by hand), and
+            CountryCatalogService validates against them.
+
+            If per-country pattern validation is ever needed — rejecting a
+            well-formed number whose operator prefix does not exist — add
+            com.googlecode.libphonenumber:libphonenumber and delegate
+            CountryCatalogService.toE164 to it. That is the only method that
+            would change.
+        -->
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

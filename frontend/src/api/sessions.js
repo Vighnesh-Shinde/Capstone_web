@@ -43,10 +43,11 @@ export async function updateSessionNotes(id, notes) {
   return data;
 }
 
-export async function createSession(participantRef, videoFile, consent) {
+export async function createSession(participantRef, videoFile, consent, language) {
   const formData = new FormData();
   formData.append("participant_ref", participantRef);
   formData.append("video", videoFile);
+  formData.append("language", language || "en");
   formData.append("consent_recording", String(!!consent?.recording));
   formData.append("consent_ai_analysis", String(!!consent?.aiAnalysis));
   formData.append("consent_storage", String(!!consent?.storage));

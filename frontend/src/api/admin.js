@@ -145,9 +145,10 @@ export async function listModelVersions(modality) {
   return data;
 }
 
-export async function uploadModelVersion({ modality, file, versionLabel, notes }) {
+export async function uploadModelVersion({ modality, language, file, versionLabel, notes }) {
   const formData = new FormData();
   formData.append("modality", modality);
+  formData.append("language", language || "en");
   formData.append("file", file);
   if (versionLabel) formData.append("versionLabel", versionLabel);
   if (notes) formData.append("notes", notes);
@@ -163,8 +164,10 @@ export async function activateModelVersion(id) {
   return data;
 }
 
-export async function revertModelToDefault(modality) {
-  await apiClient.post("/admin/models/revert-to-default", null, { params: { modality } });
+export async function revertModelToDefault(modality, language = "en") {
+  await apiClient.post("/admin/models/revert-to-default", null, {
+    params: { modality, language },
+  });
 }
 
 // --- stats ---

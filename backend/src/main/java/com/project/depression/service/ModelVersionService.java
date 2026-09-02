@@ -66,6 +66,7 @@ public class ModelVersionService {
     private final MlServiceClient mlServiceClient;
     private final AuditLogService auditLogService;
     private final ObjectMapper objectMapper;
+    private final LanguageCatalogService languageCatalog;
 
     @Value("${app.models.dir}")
     private String modelsDir;
@@ -77,19 +78,28 @@ public class ModelVersionService {
             ModelVersionRepository modelVersionRepository,
             MlServiceClient mlServiceClient,
             AuditLogService auditLogService,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            LanguageCatalogService languageCatalog
     ) {
         this.modelVersionRepository = modelVersionRepository;
         this.mlServiceClient = mlServiceClient;
         this.auditLogService = auditLogService;
         this.objectMapper = objectMapper;
+        this.languageCatalog = languageCatalog;
     }
 
     @Transactional(readOnly = true)
-    public List<ModelVersionResponse> list(ModelModality modality) {
-        List<ModelVersion> versions = modality == null
-                ? modelVersionRepository.findAllByOrderByUploadedAtDesc()
-                : modelVersionRepository.findByModalityOrderByUploadedAtDesc(modality);
+    public List<ModelVersionResponse> list(ModelModality modality, String language) {
+        List<ModelVersion> versions;
+        if (modality == null && language == null) {
+            versions = modelVersionRepository.findAllByOrderByUploadedAtDesc();
+        } else if (modality == null) {
+            versions = modelVersionRepository.findByLanguageOrderByUploadedAtDesc(language);
+        } else if (language == null) {
+            versions = modelVersionRepository.findByModalityOrderByUploadedAtDesc(modality);
+        } else {
+            versions = modelVersionRepository.findByLanguageAndModalityOrderByUploadedAtDesc(language, modality);
+        }
         return versions.stream().map(this::toResponse).toList();
     }
 
@@ -100,23 +110,34 @@ public class ModelVersionService {
      */
     @Transactional
     public ModelVersionResponse upload(
-            ModelModality modality, String versionLabel, String notes, MultipartFile file, User admin
+            ModelModality modality, String language, String versionLabel, String notes,
+            MultipartFile file, User admin
     ) {
         validateUploadShape(file);
 
+        // Any language the platform recognises, not only the scorable ones —
+        // uploading the first Marathi model is precisely how Marathi stops
+        // being unscorable, so requiring it to already be scorable would make
+        // the feature impossible to bootstrap.
+        String lang = languageCatalog.find(language)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                        "'" + language + "' is not a language this platform recognises."))
+                .code();
+
         String label = (versionLabel == null || versionLabel.isBlank())
-                ? modality.manifestKey() + "-" + STAMP.format(Instant.now())
+                ? lang + "-" + modality.manifestKey() + "-" + STAMP.format(Instant.now())
                 : versionLabel.trim();
 
-        if (modelVersionRepository.existsByModalityAndVersionLabel(modality, label)) {
+        if (modelVersionRepository.existsByModalityAndLanguageAndVersionLabel(modality, lang, label)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "A " + modality + " version labelled '" + label + "' already exists.");
+                    "A " + lang + " " + modality + " version labelled '" + label + "' already exists.");
         }
 
         // Filename is derived, never taken from the client — the original name
-        // could contain path separators or traversal sequences.
-        String storedName = modality.manifestKey() + "__" + label.replaceAll("[^A-Za-z0-9._-]", "-")
-                + MODEL_EXTENSION;
+        // could contain path separators or traversal sequences. The language
+        // prefix keeps two languages' files for the same modality distinct.
+        String storedName = lang + "__" + modality.manifestKey() + "__"
+                + label.replaceAll("[^A-Za-z0-9._-]", "-") + MODEL_EXTENSION;
         Path destination = modelsDirPath().resolve(storedName);
 
         String sha256;
@@ -150,6 +171,7 @@ public class ModelVersionService {
 
         ModelVersion version = modelVersionRepository.save(ModelVersion.builder()
                 .modality(modality)
+                .language(lang)
                 .versionLabel(label)
                 .fileName(storedName)
                 .filePath(destination.toString())
@@ -183,13 +205,15 @@ public class ModelVersionService {
         }
 
         ModelVersion previous = modelVersionRepository
-                .findByModalityAndActiveIsTrue(target.getModality()).orElse(null);
+                .findByModalityAndLanguageAndActiveIsTrue(target.getModality(), target.getLanguage())
+                .orElse(null);
         if (previous != null && previous.getId().equals(target.getId())) {
             return toResponse(target);
         }
 
         // Deactivate first and flush: the partial unique index allows only one
-        // active row per modality, so both cannot be active even momentarily.
+        // active row per (modality, language), so both cannot be active even
+        // momentarily.
         if (previous != null) {
             previous.setActive(false);
             modelVersionRepository.saveAndFlush(previous);
@@ -213,9 +237,10 @@ public class ModelVersionService {
         }
 
         auditLogService.log(admin, "MODEL_ACTIVATED", "MODEL_VERSION", versionId,
-                target.getModality() + " / " + target.getVersionLabel()
+                target.getLanguage() + " / " + target.getModality() + " / " + target.getVersionLabel()
                         + (previous == null ? "" : " (replacing " + previous.getVersionLabel() + ")"));
-        log.info("Activated {} model '{}'", target.getModality(), target.getVersionLabel());
+        log.info("Activated {} {} model '{}'",
+                target.getLanguage(), target.getModality(), target.getVersionLabel());
 
         return toResponse(target);
     }
@@ -229,10 +254,31 @@ public class ModelVersionService {
      * way back to them.
      */
     @Transactional
-    public void revertToDefault(ModelModality modality, User admin) {
-        ModelVersion active = modelVersionRepository.findByModalityAndActiveIsTrue(modality)
+    public void revertToDefault(ModelModality modality, String language, User admin) {
+        String lang = language == null || language.isBlank()
+                ? LanguageCatalogService.DEFAULT_LANGUAGE
+                : LanguageCatalogService.normalize(language);
+
+        ModelVersion active = modelVersionRepository
+                .findByModalityAndLanguageAndActiveIsTrue(modality, lang)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        modality + " is already using the built-in model."));
+                        lang + " " + modality + " is already using the built-in model."));
+
+        // Only English ships with built-in weights. Reverting any other
+        // language does not fall back to something older — it removes that
+        // language's only model and stops it being scorable at all, so say so
+        // rather than letting an admin discover it from a failed session.
+        if (!LanguageCatalogService.DEFAULT_LANGUAGE.equals(lang)) {
+            long remaining = modelVersionRepository.findByLanguageOrderByUploadedAtDesc(lang).stream()
+                    .filter(v -> v.getModality() == modality && !v.getId().equals(active.getId()))
+                    .count();
+            if (remaining == 0) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT,
+                        "There is no built-in " + lang + " model to revert to — only English ships with "
+                                + "weights. Deactivating this would leave " + lang + " unable to be scored. "
+                                + "Activate another " + lang + " " + modality + " version instead.");
+            }
+        }
 
         active.setActive(false);
         modelVersionRepository.saveAndFlush(active);
@@ -249,19 +295,29 @@ public class ModelVersionService {
         }
 
         auditLogService.log(admin, "MODEL_REVERTED_TO_DEFAULT", "MODEL_VERSION", active.getId(),
-                modality + " reverted from " + active.getVersionLabel() + " to the built-in model");
-        log.info("Reverted {} to the built-in model (was '{}')", modality, active.getVersionLabel());
+                lang + " " + modality + " reverted from " + active.getVersionLabel()
+                        + " to the built-in model");
+        log.info("Reverted {} {} to the built-in model (was '{}')",
+                lang, modality, active.getVersionLabel());
     }
 
     /**
-     * Rewrite the manifest the ML service reads. Only modalities with an active
-     * row are written, so an unset modality falls back to the shipped default
-     * rather than to a missing file.
+     * Rewrite the manifest the ML service reads, nested by language:
+     *
+     * <pre>{"en": {"text": "...", "audio": "..."}, "mr": {"text": "..."}}</pre>
+     *
+     * Only modalities with an active row are written. For English that means an
+     * unset modality falls back to the weights that shipped with the project;
+     * for any other language it means the set is incomplete, and the ML service
+     * treats an incomplete set as not scorable rather than mixing in English
+     * models. That fallback asymmetry is deliberate — English is the only
+     * language with a baseline to fall back to.
      */
     private void writeManifest() {
-        Map<String, String> manifest = new LinkedHashMap<>();
+        Map<String, Map<String, String>> manifest = new LinkedHashMap<>();
         for (ModelVersion active : modelVersionRepository.findByActiveIsTrue()) {
-            manifest.put(active.getModality().manifestKey(), active.getFileName());
+            manifest.computeIfAbsent(active.getLanguage(), k -> new LinkedHashMap<>())
+                    .put(active.getModality().manifestKey(), active.getFileName());
         }
 
         Path manifestPath = modelsDirPath().resolve("active_manifest.json");
@@ -321,7 +377,12 @@ public class ModelVersionService {
 
     private ModelVersionResponse toResponse(ModelVersion v) {
         return new ModelVersionResponse(
-                v.getId(), v.getModality().name(), v.getVersionLabel(), v.getFileName(),
+                v.getId(), v.getModality().name(),
+                v.getLanguage(),
+                languageCatalog.find(v.getLanguage())
+                        .map(com.project.depression.dto.LanguageOption::name)
+                        .orElse(v.getLanguage()),
+                v.getVersionLabel(), v.getFileName(),
                 v.getSha256(), v.getFeatureCount(), v.getThreshold(), v.getModelSummary(),
                 v.getNotes(), v.isActive(),
                 v.getUploadedBy() == null ? null : v.getUploadedBy().getName(),

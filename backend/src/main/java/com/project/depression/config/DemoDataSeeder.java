@@ -2,6 +2,7 @@ package com.project.depression.config;
 
 import com.project.depression.entity.ApplicationStatus;
 import com.project.depression.entity.CounselorApplication;
+import com.project.depression.entity.ProfessionalProfile;
 import com.project.depression.entity.Role;
 import com.project.depression.entity.User;
 import com.project.depression.repository.CounselorApplicationRepository;
@@ -74,13 +75,26 @@ public class DemoDataSeeder implements CommandLineRunner {
         // Seed a matching APPROVED application first, so AuthService's login
         // gate (which requires every COUNSELOR to have an approved
         // application) works uniformly with no special-casing for demo data.
+        ProfessionalProfile demoProfile = ProfessionalProfile.builder()
+                .countryCode("IN")
+                .phoneDialCode("+91")
+                .phoneNational("9876543210")
+                .phoneE164("+919876543210")
+                .city("Pune")
+                .stateRegion("Maharashtra")
+                .timezone("Asia/Kolkata")
+                .practiceLanguages("en")
+                .organization("Demo Clinic")
+                .professionalRole("Licensed Counselor")
+                .qualification("M.A. Clinical Psychology")
+                .yearsOfExperience(5)
+                .build();
+
         CounselorApplication application = CounselorApplication.builder()
                 .fullName("Demo Counselor")
                 .email(DEMO_COUNSELOR_EMAIL)
                 .passwordHash(passwordHash)
-                .organization("Demo Clinic")
-                .professionalRole("Licensed Counselor")
-                .qualification("M.A. Clinical Psychology")
+                .profile(demoProfile)
                 .status(ApplicationStatus.APPROVED)
                 .reviewedAt(java.time.Instant.now())
                 .build();
@@ -93,6 +107,7 @@ public class DemoDataSeeder implements CommandLineRunner {
                 .passwordHash(passwordHash)
                 .role(Role.COUNSELOR)
                 .applicationId(application.getId())
+                .profile(demoProfile.copy())
                 .build();
         demoUser = userRepository.save(demoUser);
 

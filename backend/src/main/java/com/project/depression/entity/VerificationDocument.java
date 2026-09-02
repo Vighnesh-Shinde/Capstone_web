@@ -8,6 +8,7 @@ import lombok.NoArgsConstructor;
 import lombok.Setter;
 
 import java.time.Instant;
+import java.time.LocalDate;
 import java.util.UUID;
 
 @Entity
@@ -36,6 +37,31 @@ public class VerificationDocument {
     @Column(name = "content_type")
     private String contentType;
 
+    @Enumerated(EnumType.STRING)
+    @Column(name = "doc_type", nullable = false, length = 40)
+    @Builder.Default
+    private DocumentType docType = DocumentType.OTHER;
+
+    @Column(name = "issuing_authority", length = 200)
+    private String issuingAuthority;
+
+    @Column(name = "document_number", length = 100)
+    private String documentNumber;
+
+    @Column(name = "issued_on")
+    private LocalDate issuedOn;
+
+    /**
+     * When the document itself stops being valid. An expired licence
+     * certificate is indistinguishable from a current one on screen, so the
+     * date is captured rather than inferred from the file.
+     */
+    @Column(name = "expires_on")
+    private LocalDate expiresOn;
+
+    @Column(name = "file_size")
+    private Long fileSize;
+
     @Column(name = "uploaded_at")
     private Instant uploadedAt;
 
@@ -44,5 +70,9 @@ public class VerificationDocument {
         if (uploadedAt == null) {
             uploadedAt = Instant.now();
         }
+    }
+
+    public boolean isExpired() {
+        return expiresOn != null && expiresOn.isBefore(LocalDate.now());
     }
 }

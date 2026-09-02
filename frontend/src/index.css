@@ -493,8 +493,14 @@ a.stat-card.actionable .stat-value { color: var(--violet); }
   margin: 14px 0 6px;
 }
 
+/* Enumerated rather than a bare `input` selector, which would also capture
+   checkboxes, radios and file inputs and stretch them to full width. Keep any
+   new input type used in a form in this list — `number`, `tel` and `url` were
+   added when the international profile fields arrived, and until then rendered
+   as unstyled browser defaults beside styled siblings. */
 input[type="text"], input[type="email"], input[type="password"],
-input[type="search"], input[type="date"], select, textarea {
+input[type="search"], input[type="date"], input[type="number"],
+input[type="tel"], input[type="url"], select, textarea {
   width: 100%;
   padding: 10px 13px;
   border: 1px solid var(--border);
@@ -1405,3 +1411,193 @@ code {
 .result-tag.elevated .result-dot { background: var(--warn); }
 .result-tag.clear               { color: var(--ok); }
 .result-tag.clear .result-dot   { background: var(--ok); }
+
+/* ============================================================
+   Internationalisation & professional profile
+   ============================================================ */
+
+/* --- multi-step form rail -----------------------------------
+   Numbered rather than a bare progress bar: on a form somebody
+   may abandon and come back to, "step 2 of 4, Professional
+   details" answers more than a filled percentage does. */
+.step-rail {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  list-style: none;
+  margin: 0 0 20px;
+  padding: 0;
+}
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 15px 9px 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text-mute);
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.step-index {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--surface-sunk);
+  color: var(--text-mute);
+  font-size: 12px;
+  font-weight: 700;
+  flex: none;
+}
+
+.step-item.current {
+  border-color: var(--violet);
+  background: var(--violet-tint);
+  color: var(--text-h);
+}
+.step-item.current .step-index { background: var(--violet); color: #fff; }
+
+.step-item.done { color: var(--text); }
+.step-item.done .step-index { background: var(--ok-bg); color: var(--ok); }
+
+@media (max-width: 640px) {
+  /* Below this the labels wrap to two lines each and the rail
+     costs more height than the form it introduces. */
+  .step-label { display: none; }
+  .step-item { padding: 9px; }
+}
+
+/* --- side-by-side fields ------------------------------------
+   auto-fit rather than fixed columns: city/state/postcode reads
+   as three columns on a laptop and stacks on a phone with no
+   separate breakpoint to keep in sync. */
+.field-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 0 16px;
+}
+.field-row > div { min-width: 0; }
+
+/* --- phone: dial code + national number ---------------------- */
+.phone-field {
+  display: grid;
+  grid-template-columns: minmax(110px, 150px) 1fr;
+  gap: 10px;
+  align-items: start;
+}
+.phone-field select,
+.phone-field input { margin-bottom: 0; }
+
+/* --- multi-select chips -------------------------------------
+   The native checkbox stays in the DOM rather than being
+   display:none — it keeps keyboard focus, the label association
+   and screen-reader semantics that a div-with-onClick loses. */
+.chip-choices {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 2px 0 16px;
+}
+
+.chip-choice {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--border);
+  border-radius: var(--r-pill);
+  background: var(--surface);
+  color: var(--text);
+  font-size: 13.5px;
+  cursor: pointer;
+  user-select: none;
+  transition: border-color .12s, background .12s, color .12s;
+}
+.chip-choice:hover { border-color: var(--violet); }
+.chip-choice input { width: 14px; height: 14px; margin: 0; accent-color: var(--violet); }
+.chip-choice:focus-within { outline: 2px solid var(--violet); outline-offset: 2px; }
+
+.chip-choice.selected {
+  border-color: var(--violet);
+  background: var(--violet-tint);
+  color: var(--text-h);
+  font-weight: 500;
+}
+
+/* --- document upload rows ------------------------------------ */
+.doc-row {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface-sunk);
+  padding: 16px 18px 4px;
+  margin-bottom: 14px;
+}
+
+.doc-row-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  color: var(--text-h);
+}
+
+/* --- document list, as an admin reviews it ------------------- */
+.document-row {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-soft);
+}
+.document-row:last-child { border-bottom: 0; }
+
+.document-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.document-meta { font-size: 12.5px; margin-top: 3px; }
+
+.doc-type-tag {
+  padding: 3px 9px;
+  border-radius: var(--r-pill);
+  background: var(--violet-tint);
+  color: var(--violet-press);
+  font-size: 11.5px;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+/* --- licence block on a profile summary ---------------------
+   Boxed off from the other details because it is the part an
+   administrator is actually adjudicating, and because unlike the
+   rest it renders "Not provided" instead of hiding when empty. */
+.licence-block {
+  margin-top: 18px;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--violet);
+  border-radius: var(--r);
+  background: var(--surface-sunk);
+}
+.licence-block h3 { margin: 0 0 12px; font-size: 14px; color: var(--text-h); }
+
+/* --- per-language model blocks ------------------------------- */
+.model-language-block { margin-bottom: 26px; }
+
+.model-language-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 12px;
+  font-size: 16px;
+  color: var(--text-h);
+}
+
+/* An option the browser greys out still needs to read as
+   deliberate rather than broken. */
+select option:disabled { color: var(--text-mute); }
