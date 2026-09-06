@@ -4,7 +4,7 @@ import com.project.depression.dto.EnrollmentPassageResponse;
 import com.project.depression.dto.VoiceprintStatusResponse;
 import com.project.depression.entity.User;
 import com.project.depression.repository.UserRepository;
-import com.project.depression.service.EnrollmentPassage;
+import com.project.depression.service.EnrollmentPassageService;
 import com.project.depression.service.VoiceprintService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -28,10 +28,16 @@ public class VoiceprintController {
 
     private final VoiceprintService voiceprintService;
     private final UserRepository userRepository;
+    private final EnrollmentPassageService passageService;
 
-    public VoiceprintController(VoiceprintService voiceprintService, UserRepository userRepository) {
+    public VoiceprintController(
+            VoiceprintService voiceprintService,
+            UserRepository userRepository,
+            EnrollmentPassageService passageService
+    ) {
         this.voiceprintService = voiceprintService;
         this.userRepository = userRepository;
+        this.passageService = passageService;
     }
 
     /** Whether this counselor can start a session, and when they must record again. */
@@ -49,12 +55,21 @@ public class VoiceprintController {
      */
     @GetMapping("/passage")
     public ResponseEntity<EnrollmentPassageResponse> passage() {
+        var passage = passageService.active();
         return ResponseEntity.ok(new EnrollmentPassageResponse(
-                EnrollmentPassage.VERSION,
-                EnrollmentPassage.TEXT,
-                EnrollmentPassage.APPROX_SECONDS,
+                passage.getVersion(),
+                passage.getBody(),
+                // Estimated from the text rather than hardcoded, so the guidance
+                // stays honest after an admin edits the passage.
+                estimateSeconds(passage.getBody()),
                 12
         ));
+    }
+
+    /** Roughly 150 words a minute, the usual pace for reading aloud. */
+    private static int estimateSeconds(String body) {
+        int words = body.trim().split("\\s+").length;
+        return Math.max(15, (int) Math.round(words / 150.0 * 60));
     }
 
     /**

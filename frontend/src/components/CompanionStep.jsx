@@ -1,5 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import VoiceRecorder from "./VoiceRecorder";
+import { getEnrollmentPassage } from "../api/voiceprint";
 
 /**
  * "Is anyone else in the room?" — and if so, record their voice too.
@@ -16,6 +17,23 @@ import VoiceRecorder from "./VoiceRecorder";
  */
 export default function CompanionStep({ companions, onChange }) {
   const [present, setPresent] = useState(null); // null | false | true
+
+  // The same passage the counsellor enrolled with. Shown inline rather than
+  // linked: the person reading it is standing in the room right now, and
+  // sending the counsellor off to another tab mid-appointment to find the text
+  // is the kind of friction that gets a step skipped.
+  const [passage, setPassage] = useState(null);
+  useEffect(() => {
+    let cancelled = false;
+    getEnrollmentPassage()
+      .then((p) => !cancelled && setPassage(p))
+      .catch(() => {
+        /* The recorder still works; only the on-screen text is missing. */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   function addCompanion() {
     onChange([...companions, { roleLabel: "", consentGiven: false, audio: null }]);
@@ -97,13 +115,16 @@ export default function CompanionStep({ companions, onChange }) {
                 Please do not enter their name — a description is all that is stored.
               </p>
 
-              <label className="field-label">Ask them to read the passage aloud</label>
+              <label className="field-label">Ask them to read this aloud</label>
+              {passage ? (
+                <blockquote className="enrollment-passage">{passage.text}</blockquote>
+              ) : (
+                <p className="hint">Loading the passage…</p>
+              )}
               <p className="hint">
-                The same passage you read when you set up your account, at{" "}
-                <a href="/voice-enrollment" target="_blank" rel="noopener noreferrer">
-                  this link
-                </a>
-                . About a minute, somewhere quiet.
+                The same passage you read when you set up your account
+                {passage ? ` — about ${passage.approxSeconds} seconds` : ""}. Somewhere
+                quiet, with only they speaking.
               </p>
 
               <VoiceRecorder onRecorded={(file) => update(index, { audio: file })} />

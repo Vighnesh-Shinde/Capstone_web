@@ -47,6 +47,7 @@ public class SessionProcessingService {
     private final MlServiceClient mlServiceClient;
     private final DatasetEligibilityService datasetEligibilityService;
     private final VoiceprintService voiceprintService;
+    private final org.springframework.transaction.support.TransactionTemplate newTransaction;
 
     public SessionProcessingService(
             SessionRepository sessionRepository,
@@ -54,7 +55,8 @@ public class SessionProcessingService {
             SessionFeaturesRepository sessionFeaturesRepository,
             MlServiceClient mlServiceClient,
             DatasetEligibilityService datasetEligibilityService,
-            VoiceprintService voiceprintService
+            VoiceprintService voiceprintService,
+            org.springframework.transaction.PlatformTransactionManager transactionManager
     ) {
         this.sessionRepository = sessionRepository;
         this.reportRepository = reportRepository;
@@ -62,6 +64,9 @@ public class SessionProcessingService {
         this.mlServiceClient = mlServiceClient;
         this.datasetEligibilityService = datasetEligibilityService;
         this.voiceprintService = voiceprintService;
+        this.newTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
+        this.newTransaction.setPropagationBehavior(
+                org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
 
     @Async("mlProcessingExecutor")
@@ -71,8 +76,18 @@ public class SessionProcessingService {
                 .orElseThrow(() -> new NoSuchElementException("Session not found: " + sessionId));
 
         try {
+            // Committed in its OWN transaction, not this method's.
+            //
+            // The whole of processSessionAsync runs inside one transaction, so
+            // a status written here is invisible to every other connection
+            // until the method finishes. On the mock pipeline that was two
+            // seconds and nobody noticed; on a real recording it is many
+            // minutes during which the counsellor's screen says "Uploaded" and
+            // gives them no reason to believe anything is happening. Verified
+            // against a real 82MB session: the status never left UPLOADED
+            // until the run completed.
+            markProcessing(sessionId);
             session.setStatus(SessionStatus.PROCESSING);
-            sessionRepository.save(session);
 
             // The voiceprints are read here rather than passed in, because
             // this runs asynchronously long after the request thread is gone.
@@ -150,6 +165,29 @@ public class SessionProcessingService {
                     "The recording could not be processed. If this keeps happening, "
                             + "check the file plays correctly and contact your administrator.");
             sessionRepository.save(session);
+        }
+    }
+
+    /**
+     * Stamp PROCESSING in a separate, immediately-committed transaction so the
+     * counsellor's session list reflects reality while the run is still going.
+     *
+     * Uses TransactionTemplate rather than a @Transactional(REQUIRES_NEW)
+     * method on this class, because a self-invoked call would bypass Spring's
+     * proxy and silently join the outer transaction — reintroducing exactly the
+     * bug this fixes, but harder to see.
+     */
+    private void markProcessing(UUID sessionId) {
+        try {
+            newTransaction.executeWithoutResult(status ->
+                    sessionRepository.findById(sessionId).ifPresent(s -> {
+                        s.setStatus(SessionStatus.PROCESSING);
+                        sessionRepository.save(s);
+                    }));
+        } catch (Exception e) {
+            // Cosmetic only. Failing to show a progress state must never stop
+            // the analysis that the counsellor is actually waiting for.
+            log.warn("Could not mark session {} as PROCESSING", sessionId, e);
         }
     }
 

@@ -31,6 +31,7 @@ const ADMIN_NAV = [
   { to: "/admin/users", label: "Users", icon: IconUsers },
   { to: "/admin/dataset", label: "Dataset", icon: IconDataset },
   { to: "/admin/models", label: "Models", icon: IconModels },
+  { to: "/admin/voice-passage", label: "Voice passage", icon: IconVoice },
   { to: "/admin/privacy", label: "Privacy & data", icon: IconPrivacy },
 ];
 

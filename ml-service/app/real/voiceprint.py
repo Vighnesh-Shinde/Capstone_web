@@ -112,14 +112,41 @@ def cosine_similarity(a, b) -> float:
     return float(np.dot(va, vb))
 
 
-def extract_voiceprint(wav_path: str) -> Voiceprint:
+def extract_voiceprint(media_path: str) -> Voiceprint:
     """
     Turn an enrollment recording of one person into a voiceprint.
+
+    Accepts whatever the person actually submitted — a browser's webm, a phone's
+    m4a, a wav, or a video file they recorded on a laptop camera — and converts
+    it to 16kHz mono audio first. Handing pyannote an mp4 container directly
+    works only sometimes, depending on which codecs the installed torchcodec
+    was built against, and "sometimes" is the worst possible behaviour for a
+    step a counsellor has to complete before they can work. ffmpeg normalises
+    all of it.
 
     Raises EnrollmentError with a message meant for the person who recorded it,
     not for a log file — every failure here is something they can fix by
     recording again, so the message has to say what went wrong.
     """
+    from app.real.media_pipeline import cleanup_wav, diarize_with_embeddings, extract_audio
+
+    try:
+        wav_path = extract_audio(media_path)
+    except Exception as e:
+        raise EnrollmentError(
+            "This file could not be read as audio. Please upload an audio or video "
+            f"recording of the passage being read aloud. ({e})"
+        ) from e
+
+    try:
+        return _voiceprint_from_wav(wav_path)
+    finally:
+        # The converted copy is temporary regardless of outcome; the caller
+        # deletes the original upload separately.
+        cleanup_wav(wav_path)
+
+
+def _voiceprint_from_wav(wav_path: str) -> Voiceprint:
     from app.real.media_pipeline import diarize_with_embeddings
 
     labels, embeddings, turns = diarize_with_embeddings(wav_path)
@@ -221,6 +248,30 @@ def resolve_speakers(
     reports the reason; see real_inference.
     """
     companion_embeddings = companion_embeddings or []
+
+    # Dimension mismatch means the stored voiceprint came from a different
+    # embedding model than the one that just processed this session — most
+    # often an enrolment made while the service was running the mock pipeline,
+    # or one made before a model upgrade.
+    #
+    # Checked explicitly because the alternative is a numpy shape error deep in
+    # a dot product, which surfaces to the counsellor as an unexplained
+    # processing failure. They can fix this in a minute by re-recording, but
+    # only if somebody tells them that is the problem.
+    session_dim = int(np.asarray(embeddings[0]).shape[-1]) if len(embeddings) else 0
+    enrolled_dim = int(np.asarray(counselor_embedding).shape[-1])
+    if session_dim and enrolled_dim != session_dim:
+        return SpeakerRoles(
+            participant=None, counselor=None, companions=[], similarities={},
+            resolved=False,
+            reason=(
+                f"Your enrolled voice recording is not compatible with the current "
+                f"speech models (it has {enrolled_dim} values, this session produced "
+                f"{session_dim}). This happens when the models are upgraded, or when "
+                f"the recording was made against a different configuration. Please "
+                f"record your voice again — it takes about a minute."
+            ),
+        )
 
     known: list[tuple[str, object]] = [("counselor", counselor_embedding)]
     for i, emb in enumerate(companion_embeddings):

@@ -55,6 +55,7 @@ public class VoiceprintService {
     private final FileStorageService fileStorageService;
     private final MlServiceClient mlServiceClient;
     private final AuditLogService auditLogService;
+    private final EnrollmentPassageService passageService;
 
     /**
      * How long an enrolment stays valid. Voices drift, microphones change, and
@@ -78,13 +79,15 @@ public class VoiceprintService {
             SessionCompanionRepository companionRepository,
             FileStorageService fileStorageService,
             MlServiceClient mlServiceClient,
-            AuditLogService auditLogService
+            AuditLogService auditLogService,
+            EnrollmentPassageService passageService
     ) {
         this.voiceprintRepository = voiceprintRepository;
         this.companionRepository = companionRepository;
         this.fileStorageService = fileStorageService;
         this.mlServiceClient = mlServiceClient;
         this.auditLogService = auditLogService;
+        this.passageService = passageService;
     }
 
     // ------------------------------------------------------------------
@@ -110,7 +113,7 @@ public class VoiceprintService {
                 .embedding(result.embedding())
                 .dimension(result.dimension())
                 .speechSeconds(result.speech_seconds())
-                .passageVersion(EnrollmentPassage.VERSION)
+                .passageVersion(passageService.active().getVersion())
                 .modelId(modelId)
                 .enrolledAt(Instant.now())
                 .expiresAt(Instant.now().plus(Duration.ofDays(validityDays)))
@@ -137,7 +140,7 @@ public class VoiceprintService {
                         daysUntil(v.getExpiresAt()),
                         v.getPassageVersion()))
                 .orElseGet(() -> new VoiceprintStatusResponse(
-                        false, false, null, null, null, null, EnrollmentPassage.VERSION));
+                        false, false, null, null, null, null, passageService.active().getVersion()));
     }
 
     /**
