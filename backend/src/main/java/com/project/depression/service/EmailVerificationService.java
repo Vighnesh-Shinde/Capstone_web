@@ -118,6 +118,51 @@ public class EmailVerificationService {
     }
 
     /**
+     * Send a confirmation link to an address somebody wants to move their
+     * account to.
+     *
+     * Sent to the NEW address, never the old one: the point is to prove the
+     * new mailbox is reachable, and a link delivered to the address already on
+     * file would prove nothing about the one being adopted.
+     */
+    @Transactional
+    public void sendForEmailChange(User user, String newEmail) {
+        try {
+            String rawToken = generateToken();
+            tokenRepository.save(EmailVerificationToken.builder()
+                    .userId(user.getId())
+                    .email(newEmail)
+                    .tokenHash(hash(rawToken))
+                    .expiresAt(Instant.now().plus(Duration.ofHours(tokenTtlHours)))
+                    .build());
+
+            mailService.send(
+                    newEmail,
+                    "Confirm your new email address",
+                    """
+                    Hello %s,
+
+                    You asked to change the email address on your Depression Detection
+                    Platform account to this one. Confirm it here:
+
+                    %s
+
+                    This link expires in %d hours. Your address will not change until
+                    you use it, and your current address keeps working until then.
+
+                    If you did not request this, you can ignore this email — nothing
+                    has changed.
+                    """.formatted(
+                            user.getName(),
+                            frontendBaseUrl + "/verify-email?token=" + rawToken,
+                            tokenTtlHours));
+        } catch (Exception e) {
+            log.error("Could not send the email-change confirmation for user {}",
+                    user.getId(), e);
+        }
+    }
+
+    /**
      * Consume a verification link.
      *
      * Deliberately vague on failure: "invalid or expired" covers a token that
@@ -160,6 +205,24 @@ public class EmailVerificationService {
 
         if (token.getUserId() != null) {
             userRepository.findById(token.getUserId()).ifPresent(user -> {
+                // The swap happens HERE, not when the change was requested:
+                // this is the first moment anybody has proved the new mailbox
+                // is reachable.
+                if (token.getEmail().equalsIgnoreCase(user.getPendingEmail())) {
+                    // Re-checked at the moment of the swap. Somebody else may
+                    // have claimed the address in the hours since the link was
+                    // sent, and the uniqueness that matters is uniqueness now.
+                    if (userRepository.existsByEmail(token.getEmail())) {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "That email address has been taken since you requested "
+                                        + "the change. Your address is unchanged.");
+                    }
+                    String previous = user.getEmail();
+                    user.setEmail(token.getEmail());
+                    user.setPendingEmail(null);
+                    user.setPendingEmailRequestedAt(null);
+                    log.info("Email changed from {} to {}", previous, token.getEmail());
+                }
                 user.setEmailVerified(true);
                 user.setEmailVerifiedAt(Instant.now());
                 userRepository.save(user);

@@ -103,6 +103,39 @@ public class User {
     @Column(name = "email_verified_at")
     private Instant emailVerifiedAt;
 
+    // --- notification preferences -------------------------------------
+    @Column(name = "notify_analysis_complete", nullable = false)
+    @Builder.Default
+    private boolean notifyAnalysisComplete = true;
+
+    @Column(name = "notify_analysis_failed", nullable = false)
+    @Builder.Default
+    private boolean notifyAnalysisFailed = true;
+
+    @Column(name = "notify_needs_review", nullable = false)
+    @Builder.Default
+    private boolean notifyNeedsReview = true;
+
+    @Column(name = "notify_assessment_differs", nullable = false)
+    @Builder.Default
+    private boolean notifyAssessmentDiffers = true;
+
+    @Column(name = "notify_report_generated", nullable = false)
+    @Builder.Default
+    private boolean notifyReportGenerated = false;
+
+    /**
+     * An address the owner has asked to move to but not yet proved they can
+     * receive mail at. Only replaces {@code email} on confirmation — writing
+     * it in directly would let one typo destroy the account's own
+     * password-reset path.
+     */
+    @Column(name = "pending_email")
+    private String pendingEmail;
+
+    @Column(name = "pending_email_requested_at")
+    private Instant pendingEmailRequestedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 

@@ -9,6 +9,7 @@ import RequestCounselorAccess from "./pages/RequestCounselorAccess";
 import Profile from "./pages/Profile";
 import VoiceEnrollment from "./pages/VoiceEnrollment";
 import VerifyEmail from "./pages/VerifyEmail";
+import Settings from "./pages/Settings";
 import Dashboard from "./pages/Dashboard";
 import Sessions from "./pages/Sessions";
 import NewSession from "./pages/NewSession";
@@ -61,6 +62,7 @@ export default function App() {
             <Route element={<ProtectedRoute />}>
               <Route path="/" element={<RoleHome />} />
               <Route path="/profile" element={<Profile />} />
+              <Route path="/settings" element={<Settings />} />
               <Route path="/voice-enrollment" element={<VoiceEnrollment />} />
             </Route>
 

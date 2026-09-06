@@ -1761,3 +1761,61 @@ select option:disabled { color: var(--text-mute); }
   height: 1px;
   background: var(--border);
 }
+
+/* ============================================================
+   Settings: sub-nav beside content
+   ============================================================ */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: 200px 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.settings-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  padding: 8px;
+  /* Follows the page while a long section scrolls past it. */
+  position: sticky;
+  top: 76px;
+}
+
+.settings-nav-item {
+  border: none;
+  background: none;
+  text-align: left;
+  padding: 9px 12px;
+  border-radius: var(--r-sm);
+  font: inherit;
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.settings-nav-item:hover { background: var(--surface-sunk); color: var(--text-h); }
+
+.settings-nav-item.active {
+  background: var(--violet-soft);
+  color: var(--violet-press);
+  font-weight: 650;
+}
+
+.settings-content > :last-child { margin-bottom: 0; }
+
+/* Below this the two-column split leaves neither column usable, so the nav
+   becomes a horizontal strip above the content. */
+@media (max-width: 760px) {
+  .settings-layout { grid-template-columns: 1fr; }
+  .settings-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    position: static;
+  }
+}

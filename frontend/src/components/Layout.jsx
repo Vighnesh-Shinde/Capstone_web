@@ -12,6 +12,7 @@ import {
   IconRequests,
   IconSessions,
   IconUsers,
+  IconSettings,
   IconVoice,
 } from "./NavIcons";
 
@@ -23,6 +24,7 @@ const COUNSELOR_NAV = [
   // counselor whose recording expires next week should be able to renew it
   // when it suits them, rather than being stopped mid-clinic to find it.
   { to: "/voice-enrollment", label: "My voice", icon: IconVoice },
+  { to: "/settings", label: "Settings", icon: IconSettings },
 ];
 
 const ADMIN_NAV = [
