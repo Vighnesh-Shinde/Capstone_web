@@ -167,8 +167,13 @@ public class MediaPurgeService {
             try {
                 deleted = Files.deleteIfExists(Path.of(session.getVideoPath()));
             } catch (IOException e) {
+                // The exception's message carries the absolute path on disk.
+                // That belongs in the log, which only an operator reads, not in
+                // a database column that an admin screen may one day render.
                 log.error("Could not delete the recording for session {}", session.getId(), e);
-                session.setPurgeBlockedReason("the file could not be deleted: " + e.getMessage());
+                session.setPurgeBlockedReason(
+                        "the recording could not be deleted (" + e.getClass().getSimpleName()
+                                + ") — see the server log");
                 return;
             }
         }

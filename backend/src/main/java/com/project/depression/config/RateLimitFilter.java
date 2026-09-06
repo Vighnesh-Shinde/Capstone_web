@@ -99,6 +99,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ("POST".equals(method) && path.endsWith("/api/auth/login")) {
             return new RuleMatch("login", loginMaxAttempts, Duration.ofMinutes(loginWindowMinutes));
         }
+        // Google sign-in is an authentication endpoint like any other, and
+        // leaving it unlimited would have made it the cheap way around the
+        // limit on /login. Each call also reaches out to Google, so an
+        // unlimited one is a way to burn this server's outbound quota too.
+        if ("POST".equals(method) && path.endsWith("/api/auth/google")) {
+            return new RuleMatch("login", loginMaxAttempts, Duration.ofMinutes(loginWindowMinutes));
+        }
         if ("POST".equals(method) && path.endsWith("/api/counselor-applications")) {
             return new RuleMatch("application-submit", applicationMaxAttempts, Duration.ofMinutes(applicationWindowMinutes));
         }
@@ -107,6 +114,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
         if ("POST".equals(method)
                 && (path.endsWith("/api/auth/forgot-password") || path.endsWith("/api/auth/reset-password"))) {
             return new RuleMatch("password-reset", passwordResetMaxAttempts, Duration.ofMinutes(passwordResetWindowMinutes));
+        }
+        // Verification tokens are single-use and random, but the endpoint is
+        // still a guessing surface and it is unauthenticated. Grouped with the
+        // reset limits because it is the same kind of thing: a token arriving
+        // from an email link.
+        if ("POST".equals(method) && path.endsWith("/api/auth/verify-email")) {
+            return new RuleMatch("password-reset", passwordResetMaxAttempts, Duration.ofMinutes(passwordResetWindowMinutes));
+        }
+        // Requesting an email change sends mail to an address the CALLER
+        // chooses. It needs a session and the account password, so this is not
+        // an open relay — but without a limit one compromised or malicious
+        // counsellor could still use this server to send mail at whatever rate
+        // it will go, from a domain that legitimately belongs to the clinic.
+        if ("POST".equals(method) && path.endsWith("/api/me/settings/email")) {
+            return new RuleMatch("email-change", passwordResetMaxAttempts, Duration.ofMinutes(passwordResetWindowMinutes));
         }
         return null;
     }

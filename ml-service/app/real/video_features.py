@@ -198,9 +198,14 @@ def compute_video_features(video_path: str) -> np.ndarray:
     from mediapipe.tasks.python import vision
 
     if not MODEL_PATH.exists():
+        # The path goes to the log, not into the returned error: that string is
+        # stored on the session and could be rendered on a screen, and server
+        # filesystem layout is not something a counsellor should be shown.
+        logger.error("Face landmark model missing at %s", MODEL_PATH)
         raise VideoFeatureError(
-            f"The face landmark model is missing at {MODEL_PATH}. See the README "
-            f"section on video features for how to download it."
+            "The face landmark model is not installed on this server, so video "
+            "features cannot be extracted. This is a server configuration problem "
+            "— please contact your administrator."
         )
 
     capture = cv2.VideoCapture(video_path)
