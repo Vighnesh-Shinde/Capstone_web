@@ -1,0 +1,11 @@
+# Training-only dependencies. Deliberately NOT shared with ml-service:
+# these run on a GPU box on the operator's schedule, and pinning them
+# together would couple a retraining run to the serving environment.
+#
+# Versions must produce models loadable by the ml-service's scikit-learn.
+# A model pickled by a much newer scikit-learn may fail to unpickle on an
+# older one — check ml-service/requirements.txt if an upload is rejected.
+scikit-learn>=1.3,<2
+pandas>=2.0
+numpy>=1.24
+joblib>=1.3

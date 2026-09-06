@@ -51,3 +51,11 @@ Dataset/
 # and an 80MB+ video would bloat the repository permanently. Referenced by the
 # testing steps in the README; keep your own copies locally.
 Test/
+
+# Training artifacts: exported datasets contain real clinical features and
+# real counsellor judgments, and trained models are large binaries produced
+# from them. Both belong on the GPU box, not in version control.
+training/*.zip
+training/*.joblib
+training/*.report.json
+training/venv/

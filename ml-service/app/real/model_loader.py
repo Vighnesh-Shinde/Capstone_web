@@ -65,6 +65,11 @@ EXPECTED_FEATURE_COUNTS = {
     "text": 3096,
     "audio": 85,
     "fusion": 2,
+    # Validated so a video model can be uploaded and versioned, but
+    # deliberately NOT in DEFAULT_FILENAMES: video is not in the prediction
+    # path, nothing loads it at startup, and reload() must not fail because a
+    # stage nobody has uploaded to has no file. See ModelModality.
+    "video": 111,
 }
 
 
