@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import PasswordInput from "../components/PasswordInput";
 import { submitCounselorApplication } from "../api/applications";
 import { getDocumentTypes, getLanguages } from "../api/reference";
 import useReferenceData from "../hooks/useReferenceData";
@@ -241,7 +242,7 @@ export default function RequestCounselorAccess() {
             <p className="hint">You will sign in with this address once approved.</p>
 
             <label className="field-label" htmlFor="password">Choose a password *</label>
-            <input id="password" type="password" autoComplete="new-password" minLength={8}
+            <PasswordInput id="password" autoComplete="new-password" autoComplete="new-password" minLength={8}
                    value={form.password} onChange={(e) => updateField("password", e.target.value)} required />
             <p className="hint">At least 8 characters.</p>
           </>

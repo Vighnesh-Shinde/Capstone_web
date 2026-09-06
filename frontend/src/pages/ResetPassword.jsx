@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
+import PasswordInput from "../components/PasswordInput";
 import { resetPassword } from "../api/auth";
 
 const MIN_LENGTH = 10;
@@ -68,9 +69,8 @@ export default function ResetPassword() {
         <label className="field-label" htmlFor="password">
           New password
         </label>
-        <input
+        <PasswordInput
           id="password"
-          type="password"
           autoComplete="new-password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
@@ -82,9 +82,8 @@ export default function ResetPassword() {
         <label className="field-label" htmlFor="confirm">
           Confirm new password
         </label>
-        <input
+        <PasswordInput
           id="confirm"
-          type="password"
           autoComplete="new-password"
           value={confirm}
           onChange={(e) => setConfirm(e.target.value)}

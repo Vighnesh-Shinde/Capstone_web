@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState } from "react";
-import { login as loginRequest } from "../api/auth";
+import { login as loginRequest, loginWithGoogle as googleLoginRequest } from "../api/auth";
 
 const AuthContext = createContext(null);
 
@@ -16,8 +16,16 @@ export function AuthProvider({ children }) {
     setLoading(false);
   }, []);
 
-  async function login(identifier, password) {
-    const data = await loginRequest(identifier, password);
+  async function login(identifier, password, captchaToken) {
+    return establishSession(await loginRequest(identifier, password, captchaToken));
+  }
+
+  /** Same resulting session as a password sign-in — same claims, same expiry. */
+  async function loginWithGoogle(credential, captchaToken) {
+    return establishSession(await googleLoginRequest(credential, captchaToken));
+  }
+
+  function establishSession(data) {
     const loggedInUser = {
       email: data.email,
       username: data.username,
@@ -47,7 +55,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updateCurrentUser }}>
+    <AuthContext.Provider value={{ user, loading, login, loginWithGoogle, logout, updateCurrentUser }}>
       {children}
     </AuthContext.Provider>
   );

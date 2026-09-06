@@ -100,6 +100,19 @@ app:
     enabled: ${VIDEO_RETENTION_ENABLED:true}
     days: ${VIDEO_RETENTION_DAYS:30}
     cron: ${VIDEO_RETENTION_CRON:0 15 3 * * *}
+  # Google sign-in. Blank = disabled, and the login page hides the button.
+  # Create at: Google Cloud Console -> APIs & Services -> Credentials ->
+  # OAuth 2.0 Client ID (Web application).
+  google:
+    client-id: ${GOOGLE_CLIENT_ID:}
+
+  # reCAPTCHA v3. Blank = disabled (see CaptchaService for why that is safe
+  # for a bot check but would not be for authentication).
+  captcha:
+    site-key: ${RECAPTCHA_SITE_KEY:}
+    secret: ${RECAPTCHA_SECRET:}
+    minimum-score: ${RECAPTCHA_MIN_SCORE:0.5}
+
   cors:
     # Comma-separated. Overridable via CORS_ALLOWED_ORIGINS in backend/.env —
     # e.g. to add a LAN address so a phone or another laptop on the same

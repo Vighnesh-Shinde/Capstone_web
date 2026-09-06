@@ -62,6 +62,20 @@ public class CounselorApplication {
     @Column(name = "rejection_reason")
     private String rejectionReason;
 
+    /**
+     * Whether the applicant clicked the link sent to this address.
+     *
+     * Advisory, shown to the reviewing administrator. Approving an application
+     * with an unreachable address creates an account that can never recover its
+     * own password, and nobody discovers that until they are locked out.
+     */
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Column(name = "submitted_at")
     private Instant submittedAt;
 

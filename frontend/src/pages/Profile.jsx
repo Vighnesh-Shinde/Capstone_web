@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import PasswordInput from "../components/PasswordInput";
 import { changePassword, getProfile, updateProfile } from "../api/profile";
 import { useAuth } from "../context/AuthContext";
 import ProfessionalDetailsForm from "../components/ProfessionalDetailsForm";
@@ -185,9 +186,8 @@ export default function Profile() {
             <h2>Change password</h2>
 
             <label className="field-label" htmlFor="currentPassword">Current password</label>
-            <input
+            <PasswordInput
               id="currentPassword"
-              type="password"
               autoComplete="current-password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -195,9 +195,8 @@ export default function Profile() {
             />
 
             <label className="field-label" htmlFor="newPassword">New password</label>
-            <input
+            <PasswordInput
               id="newPassword"
-              type="password"
               autoComplete="new-password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -207,9 +206,8 @@ export default function Profile() {
             <p className="hint">At least {MIN_LENGTH} characters.</p>
 
             <label className="field-label" htmlFor="confirmPassword">Confirm new password</label>
-            <input
+            <PasswordInput
               id="confirmPassword"
-              type="password"
               autoComplete="new-password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}

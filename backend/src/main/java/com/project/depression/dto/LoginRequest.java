@@ -9,6 +9,8 @@ import jakarta.validation.constraints.NotBlank;
  */
 public record LoginRequest(
         @NotBlank String identifier,
-        @NotBlank String password
+        @NotBlank String password,
+        /** Only enforced when the server has a CAPTCHA secret configured. */
+        String captchaToken
 ) {
 }

@@ -1702,3 +1702,62 @@ select option:disabled { color: var(--text-mute); }
      becomes an unbounded horizontal scroll nobody can reach the end of. */
   .table-card td.cell-wrap { white-space: normal; min-width: 220px; }
 }
+
+/* ============================================================
+   Password field, Google sign-in
+   ============================================================ */
+
+.password-field { position: relative; display: block; }
+
+/* Right padding reserves room for the toggle so a long password never
+   scrolls underneath the icon. */
+.password-field input { padding-right: 44px; width: 100%; }
+
+.password-toggle {
+  position: absolute;
+  top: 0;
+  right: 0;
+  /* Matches the input's height exactly rather than being vertically centred
+     with a transform — inputs here vary in height between forms, and a
+     transform would drift on the taller ones. */
+  height: 100%;
+  width: 42px;
+  display: grid;
+  place-items: center;
+  border: none;
+  background: none;
+  color: var(--text-mute);
+  cursor: pointer;
+  border-radius: 0 var(--r-sm) var(--r-sm) 0;
+}
+
+.password-toggle:hover { color: var(--text-h); }
+
+/* The input already owns the visible focus ring, and the toggle sits inside
+   it — a second ring on top reads as a rendering fault. */
+.password-toggle:focus-visible { outline: none; color: var(--violet); }
+
+.google-signin { margin-top: 4px; }
+
+/* Google renders an iframe of a fixed height; centring it keeps the button
+   aligned with the form's own full-width controls. */
+.google-signin > div { display: flex; justify-content: center; }
+
+.google-signin-disabled { opacity: .55; pointer-events: none; }
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 18px 0 14px;
+  color: var(--text-mute);
+  font-size: 12px;
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}

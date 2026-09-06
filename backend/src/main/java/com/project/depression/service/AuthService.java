@@ -28,19 +28,22 @@ public class AuthService {
     private final CounselorApplicationRepository applicationRepository;
     private final PasswordEncoder passwordEncoder;
     private final JwtService jwtService;
+    private final GoogleAuthService googleAuthService;
 
     public AuthService(
             AuthenticationManager authenticationManager,
             UserRepository userRepository,
             CounselorApplicationRepository applicationRepository,
             PasswordEncoder passwordEncoder,
-            JwtService jwtService
+            JwtService jwtService,
+            GoogleAuthService googleAuthService
     ) {
         this.authenticationManager = authenticationManager;
         this.userRepository = userRepository;
         this.applicationRepository = applicationRepository;
         this.passwordEncoder = passwordEncoder;
         this.jwtService = jwtService;
+        this.googleAuthService = googleAuthService;
     }
 
     @Transactional
@@ -79,6 +82,81 @@ public class AuthService {
             checkCounselorApproved(user);
         }
 
+        return issueToken(user);
+    }
+
+    /**
+     * Sign in with Google, into an account an administrator already approved.
+     *
+     * The hard rule this method exists to enforce: Google proves WHO someone
+     * is, never THAT they are an approved clinician. So a verified Google
+     * identity with no matching account is turned away with an explanation —
+     * it is never a reason to create one. Every approval, suspension and
+     * application-status check that guards password sign-in is applied here
+     * too, by calling the same code, so the two paths cannot drift apart.
+     */
+    @Transactional
+    public LoginResponse loginWithGoogle(String idToken) {
+        var payload = googleAuthService.verify(idToken);
+        String email = payload.getEmail().trim();
+        String googleSub = payload.getSubject();
+
+        User user = userRepository.findByEmail(email).orElseThrow(() -> {
+            // No account. If they have an application in flight, say where it
+            // stands; otherwise point them at the request form. Both replies
+            // reveal only what the person signing in already knows — they just
+            // proved control of this address to Google.
+            var application = applicationRepository.findByEmail(email);
+            if (application.isPresent()) {
+                return statusException(application.get());
+            }
+            return new AccountNotApprovedException(
+                    "There is no approved counsellor account for " + email + ". "
+                            + "Signing in with Google does not create one — please request "
+                            + "counsellor access, and an administrator will review it.");
+        });
+
+        if (user.getGoogleSub() == null) {
+            // First Google sign-in for an existing account: bind this Google
+            // identity to it from now on.
+            user.setGoogleSub(googleSub);
+            user.setGoogleLinkedAt(Instant.now());
+        } else if (!user.getGoogleSub().equals(googleSub)) {
+            // Same address, different Google account. That is what a reassigned
+            // Workspace address looks like, and it must not open the previous
+            // holder's clinical records.
+            throw new AccountNotApprovedException(
+                    "This email is registered to a different Google account. Please sign in "
+                            + "with your password, or ask an administrator for help.");
+        }
+
+        if (user.getStatus() == UserStatus.SUSPENDED) {
+            throw new AccountNotApprovedException(
+                    "This account has been suspended. Please contact an administrator.");
+        }
+
+        if (user.getRole() == Role.COUNSELOR) {
+            checkCounselorApproved(user);
+        }
+
+        // Google only issues a token for a verified address (checked in
+        // GoogleAuthService), so a successful sign-in is itself proof.
+        if (!user.isEmailVerified()) {
+            user.setEmailVerified(true);
+            user.setEmailVerifiedAt(Instant.now());
+        }
+
+        return issueToken(user);
+    }
+
+    /**
+     * Stamp the login and mint our own JWT.
+     *
+     * Shared by both sign-in paths so the session a Google user gets is
+     * identical in every respect to a password user's — same claims, same
+     * expiry, same authorities.
+     */
+    private LoginResponse issueToken(User user) {
         user.setLastLoginAt(Instant.now());
         userRepository.save(user);
 
@@ -88,10 +166,9 @@ public class AuthService {
                 .authorities("ROLE_" + user.getRole().name())
                 .build();
 
-        String token = jwtService.generateToken(userDetails);
-
         return new LoginResponse(
-                token, user.getEmail(), user.getUsername(), user.getName(), user.getRole().name());
+                jwtService.generateToken(userDetails),
+                user.getEmail(), user.getUsername(), user.getName(), user.getRole().name());
     }
 
     private void checkCounselorApproved(User user) {

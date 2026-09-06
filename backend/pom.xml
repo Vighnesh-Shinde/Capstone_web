@@ -97,6 +97,25 @@
             would change.
         -->
 
+        <!--
+            Google's own ID-token verifier, rather than hand-rolling JWKS
+            validation on top of jjwt.
+
+            Verifying a Google ID token correctly means checking the RS256
+            signature against Google's published keys, honouring key rotation
+            by `kid`, rejecting `alg: none` and HMAC algorithm-confusion
+            attacks, and validating `iss`, `aud` and `exp` with sane clock
+            skew. Every one of those is a well-known way to get token
+            verification subtly and silently wrong, and a mistake here means
+            anyone can log in as anyone. This library is maintained by the
+            party that issues the tokens.
+        -->
+        <dependency>
+            <groupId>com.google.api-client</groupId>
+            <artifactId>google-api-client</artifactId>
+            <version>2.7.0</version>
+        </dependency>
+
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>

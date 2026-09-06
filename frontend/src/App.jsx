@@ -8,6 +8,7 @@ import ResetPassword from "./pages/ResetPassword";
 import RequestCounselorAccess from "./pages/RequestCounselorAccess";
 import Profile from "./pages/Profile";
 import VoiceEnrollment from "./pages/VoiceEnrollment";
+import VerifyEmail from "./pages/VerifyEmail";
 import Dashboard from "./pages/Dashboard";
 import Sessions from "./pages/Sessions";
 import NewSession from "./pages/NewSession";
@@ -46,6 +47,7 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/forgot-password" element={<ForgotPassword />} />
             <Route path="/reset-password" element={<ResetPassword />} />
+            <Route path="/verify-email" element={<VerifyEmail />} />
             <Route path="/request-access" element={<RequestCounselorAccess />} />
 
             {/* Public: a counselor must be able to reach crisis guidance and the

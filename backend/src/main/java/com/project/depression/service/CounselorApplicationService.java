@@ -26,6 +26,7 @@ public class CounselorApplicationService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final FileStorageService fileStorageService;
+    private final EmailVerificationService emailVerificationService;
     private final AuditLogService auditLogService;
     private final CountryCatalogService countryCatalog;
 
@@ -36,7 +37,8 @@ public class CounselorApplicationService {
             PasswordEncoder passwordEncoder,
             FileStorageService fileStorageService,
             AuditLogService auditLogService,
-            CountryCatalogService countryCatalog
+            CountryCatalogService countryCatalog,
+            EmailVerificationService emailVerificationService
     ) {
         this.applicationRepository = applicationRepository;
         this.documentRepository = documentRepository;
@@ -45,6 +47,7 @@ public class CounselorApplicationService {
         this.fileStorageService = fileStorageService;
         this.auditLogService = auditLogService;
         this.countryCatalog = countryCatalog;
+        this.emailVerificationService = emailVerificationService;
     }
 
     @Transactional
@@ -95,6 +98,10 @@ public class CounselorApplicationService {
                 .build();
         application = applicationRepository.save(application);
 
+        // After the row is saved, so a failure to send cannot roll back a
+        // successfully received application.
+        emailVerificationService.sendForApplication(application);
+
         for (DocumentMetadata meta : documents) {
             MultipartFile file = meta.file();
             if (file == null || file.isEmpty()) continue;
@@ -144,6 +151,11 @@ public class CounselorApplicationService {
                 .passwordHash(application.getPasswordHash())
                 .role(Role.COUNSELOR)
                 .applicationId(application.getId())
+                // Carried over rather than reset: the applicant already proved
+                // they control this address, and making them do it again after
+                // approval would be busywork.
+                .emailVerified(application.isEmailVerified())
+                .emailVerifiedAt(application.getEmailVerifiedAt())
                 // Copied, not shared — see ProfessionalProfile.copy().
                 .profile(application.profileOrEmpty().copy())
                 .verifiedAt(java.time.Instant.now())

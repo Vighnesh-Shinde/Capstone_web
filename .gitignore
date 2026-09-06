@@ -45,3 +45,9 @@ Dataset/
 .idea/
 .vscode/
 *.iml
+
+# Local test media: a counsellor voice sample and a full session recording.
+# Never committed — they are real recordings of a real person's voice and face,
+# and an 80MB+ video would bloat the repository permanently. Referenced by the
+# testing steps in the README; keep your own copies locally.
+Test/

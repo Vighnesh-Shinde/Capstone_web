@@ -81,6 +81,28 @@ public class User {
     @Column(name = "verified_by")
     private UUID verifiedBy;
 
+    /**
+     * Google's immutable subject id, set the first time this account signs in
+     * with Google.
+     *
+     * Matched on every later Google sign-in rather than trusting the email
+     * alone: Workspace addresses get reassigned when staff leave, and keying
+     * off the string would hand the next holder of an old address someone
+     * else's clinical account.
+     */
+    @Column(name = "google_sub")
+    private String googleSub;
+
+    @Column(name = "google_linked_at")
+    private Instant googleLinkedAt;
+
+    @Column(name = "email_verified", nullable = false)
+    @Builder.Default
+    private boolean emailVerified = false;
+
+    @Column(name = "email_verified_at")
+    private Instant emailVerifiedAt;
+
     @Column(name = "created_at")
     private Instant createdAt;
 
