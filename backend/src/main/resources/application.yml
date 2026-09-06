@@ -101,7 +101,12 @@ app:
     days: ${VIDEO_RETENTION_DAYS:30}
     cron: ${VIDEO_RETENTION_CRON:0 15 3 * * *}
   cors:
-    allowed-origins: http://localhost:5173
+    # Comma-separated. Overridable via CORS_ALLOWED_ORIGINS in backend/.env —
+    # e.g. to add a LAN address so a phone or another laptop on the same
+    # network can reach a locally-run frontend. Previously hardcoded with no
+    # placeholder, so setting the env var (already documented in the README's
+    # env var table) silently did nothing outside the `prod` profile.
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173}
 
 logging:
   level:
