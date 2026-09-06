@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
+import { useReturnTo } from "../hooks/useReturnTo";
 import { getSession } from "../api/sessions";
 import ConsentRecord from "../components/ConsentRecord";
 import SessionNotes from "../components/SessionNotes";
@@ -28,6 +29,8 @@ function elapsedLabel(since) {
 
 export default function SessionDetail() {
   const { id } = useParams();
+  // Returns to the filtered list the user came from, not a bare list URL.
+  const back = useReturnTo("/sessions");
   const navigate = useNavigate();
   const [session, setSession] = useState(null);
   const [error, setError] = useState("");
@@ -44,7 +47,14 @@ export default function SessionDetail() {
         setSession(data);
 
         if (data.status === "COMPLETED") {
-          navigate(`/sessions/${id}/report`, { replace: true });
+          // `state` is carried through so the report's back control still
+          // knows which filtered list the counsellor started from. Dropping it
+          // here would silently undo the fix one page later.
+          //
+          // replace: true so browser Back skips this page — it exists only to
+          // wait for processing, and returning to a "still processing" screen
+          // for a session that has finished is confusing.
+          navigate(`/sessions/${id}/report`, { replace: true, state: back.state });
           return;
         }
         if (data.status === "UPLOADED" || data.status === "PROCESSING") {
@@ -80,9 +90,9 @@ export default function SessionDetail() {
 
   return (
     <div className="page">
-      <Link to="/sessions" className="btn-link">
+      <button type="button" className="btn-link" onClick={back.goBack}>
         ← Back to sessions
-      </Link>
+      </button>
       <h1>Session status</h1>
 
       {error && <div className="alert alert-error">{error}</div>}

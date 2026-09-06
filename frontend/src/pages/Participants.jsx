@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
+import { useReturnState } from "../hooks/useReturnTo";
 import { listParticipants } from "../api/participants";
 
 function formatDate(value) {
@@ -8,6 +9,7 @@ function formatDate(value) {
 }
 
 export default function Participants() {
+  const returnState = useReturnState();
   const [participants, setParticipants] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
@@ -104,7 +106,7 @@ export default function Participants() {
                   <td>{formatDate(p.firstSeenAt)}</td>
                   <td>{formatDate(p.lastSessionAt)}</td>
                   <td>
-                    <Link to={`/participants/${p.id}`} className="btn-link">
+                    <Link to={`/participants/${p.id}`} state={returnState} className="btn-link">
                       View history
                     </Link>
                   </td>

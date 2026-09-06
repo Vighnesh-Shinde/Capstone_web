@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { createSession } from "../api/sessions";
 import { listParticipants } from "../api/participants";
 import LanguageSelect from "../components/LanguageSelect";
@@ -13,9 +13,29 @@ const initialConsent = {
   researchReuse: false,
 };
 
+const STEPS = ["details", "consent", "room", "capture"];
+
 export default function NewSession() {
   const navigate = useNavigate();
-  const [step, setStep] = useState("details"); // details -> consent -> room -> capture
+  // The wizard step lives in the URL, not in component state.
+  //
+  // THE BUG THIS FIXES: with the step in state, pressing browser Back on step
+  // 3 left the whole form — discarding the consent that had been ticked and,
+  // worse, any companion voice recordings already captured. Those cannot be
+  // re-created without the person who made them, who by then has usually left
+  // the room. Back now moves between steps, which is what it looks like it
+  // should do.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const requestedStep = searchParams.get("step");
+  const step = STEPS.includes(requestedStep) ? requestedStep : "details";
+
+  // Guarded rather than trusted: Back, Forward, a bookmark or a reload can all
+  // ask for a later step whose prerequisites were never met. Rendering the
+  // upload screen for someone who never ticked consent would let a session be
+  // created without it.
+  function setStep(next) {
+    setSearchParams({ step: next });
+  }
   const [participantRef, setParticipantRef] = useState("");
   const [participantMode, setParticipantMode] = useState("new"); // "new" | "returning"
   const [participants, setParticipants] = useState([]);
@@ -32,6 +52,19 @@ export default function NewSession() {
   const [file, setFile] = useState(null);
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
+
+  // Prerequisite guard for URL-driven steps. Consent and recordings live in
+  // component state and cannot survive a reload, so a deep link or a Forward
+  // press into a later step has to fall back to where the data actually is.
+  useEffect(() => {
+    const consented = consent.recording && consent.aiAnalysis && consent.storage;
+    if ((step === "room" || step === "capture") && !consented) {
+      setSearchParams({ step: participantRef.trim() ? "consent" : "details" }, { replace: true });
+    } else if (step === "consent" && !participantRef.trim()) {
+      setSearchParams({ step: "details" }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, consent, participantRef]);
 
   useEffect(() => {
     listParticipants()

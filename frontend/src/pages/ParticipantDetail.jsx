@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useReturnTo } from "../hooks/useReturnTo";
 import { getParticipant } from "../api/participants";
 import ParticipantTrendChart from "../components/ParticipantTrendChart";
 import StatusBadge from "../components/StatusBadge";
@@ -16,6 +17,8 @@ function predictionLabel(prediction) {
 
 export default function ParticipantDetail() {
   const { id } = useParams();
+  // Returns to the filtered list the user came from, not a bare list URL.
+  const back = useReturnTo("/participants");
   const [participant, setParticipant] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -46,7 +49,8 @@ export default function ParticipantDetail() {
   if (error) {
     return (
       <div className="page">
-        <Link to="/participants" className="btn-link">← Back to participants</Link>
+        <button type="button" className="btn-link" onClick={back.goBack}>
+        ← Back to participants</button>
         <div className="alert alert-error">{error}</div>
       </div>
     );
@@ -57,7 +61,8 @@ export default function ParticipantDetail() {
 
   return (
     <div className="page">
-      <Link to="/participants" className="btn-link">← Back to participants</Link>
+      <button type="button" className="btn-link" onClick={back.goBack}>
+        ← Back to participants</button>
 
       <header className="page-header">
         <div>

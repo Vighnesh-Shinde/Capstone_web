@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useReturnTo } from "../hooks/useReturnTo";
 import { getReport, getSession } from "../api/sessions";
 import ExplanationFactorBar from "../components/ExplanationFactorBar";
 import ModalityContributions from "../components/ModalityContributions";
@@ -11,6 +12,8 @@ import SessionNotes from "../components/SessionNotes";
 
 export default function Report() {
   const { id } = useParams();
+  // Returns to the filtered list the user came from, not a bare list URL.
+  const back = useReturnTo("/sessions");
   const [report, setReport] = useState(null);
   const [session, setSession] = useState(null);
   const [error, setError] = useState("");
@@ -47,9 +50,9 @@ export default function Report() {
 
   return (
     <div className="page">
-      <Link to="/sessions" className="btn-link">
+      <button type="button" className="btn-link" onClick={back.goBack}>
         ← Back to sessions
-      </Link>
+      </button>
 
       <header className="page-header">
         <h1>Report</h1>

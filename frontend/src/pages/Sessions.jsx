@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
+import { useReturnState } from "../hooks/useReturnTo";
 import { listSessions } from "../api/sessions";
 import StatusBadge from "../components/StatusBadge";
 import ResultTag from "../components/ResultTag";
@@ -19,6 +20,9 @@ export default function Sessions() {
   // Filters live in the URL so a filtered view can be linked to and survives
   // a refresh — the dashboard's "Awaiting your assessment" tile relies on this.
   const [searchParams, setSearchParams] = useSearchParams();
+  // Carried on every outgoing link so a detail page can return to this exact
+  // filter, page and sort rather than an unfiltered page 1.
+  const returnState = useReturnState();
   const status = searchParams.get("status") || "";
   const page = Number(searchParams.get("page") || 0);
   const sort = searchParams.get("sort") || "createdAt";
@@ -163,7 +167,7 @@ export default function Sessions() {
                   <tr key={session.id}>
                     <td className="cell-strong">
                       {session.participantId ? (
-                        <Link to={`/participants/${session.participantId}`}>
+                        <Link to={`/participants/${session.participantId}`} state={returnState}>
                           {session.participantRef}
                         </Link>
                       ) : (
@@ -179,7 +183,7 @@ export default function Sessions() {
                         : "—"}
                     </td>
                     <td>
-                      <Link to={`/sessions/${session.id}`} className="btn-link">
+                      <Link to={`/sessions/${session.id}`} state={returnState} className="btn-link">
                         View
                       </Link>
                     </td>
