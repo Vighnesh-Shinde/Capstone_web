@@ -46,12 +46,22 @@ class ProcessResponse(BaseModel):
     # Optional because the mock pipeline has no real features to report.
     text_features: Optional[List[float]] = None
     audio_features: Optional[List[float]] = None
+    # Facial geometry over the session. Optional because a recording where the
+    # participant is off-camera or in darkness still has usable audio and text
+    # — a missing face is a reason to store fewer features, not to fail.
+    video_features: Optional[List[float]] = None
+    video_features_error: Optional[str] = None
     transcript_text: Optional[str] = None
 
     # The whole conversation in DAIC-WOZ format (tab-separated, CRLF,
     # start/stop/speaker/value). Kept so sessions recorded here can be appended
     # to a training set built from the corpus with no separate parser.
     daic_transcript: Optional[str] = None
+
+    # The same conversation filtered to the participant's turns. Stored
+    # separately because it is what the text model actually consumes, and
+    # deriving it later would mean re-parsing the full transcript every time.
+    participant_transcript: Optional[str] = None
 
     # Which diarized cluster was judged to be whom, and the cosine similarity
     # behind each judgement. Persisted with the session because this is the

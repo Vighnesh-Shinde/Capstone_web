@@ -16,15 +16,19 @@ Boot backend already treats any ML-service error as session status FAILED,
 so this degrades gracefully with zero backend changes.
 """
 
+import logging
+
 import numpy as np
 
 from app.languages import DEFAULT_LANGUAGE, LanguageNotScorable
 from app.real import media_pipeline
 from app.real.audio_features import compute_audio_features
-from app.real.daic_transcript import build_transcript
+from app.real.daic_transcript import build_participant_transcript, build_transcript
 from app.real.model_loader import Models, scoring_languages
 from app.real.text_features import compute_text_features
 from app.schemas import ExplanationItem, ProcessResponse
+
+logger = logging.getLogger("ml-service")
 
 
 def _predict_proba(bundle, features: np.ndarray) -> float:
@@ -101,6 +105,23 @@ def run_real_inference(
         text_raw = compute_text_features(transcript.participant_segments)
         audio_raw = compute_audio_features(transcript.wav_path, transcript)
 
+        # Extracted here rather than in a later pass, because the recording is
+        # deleted once its derived data is stored. Anything not taken now is
+        # gone for good.
+        #
+        # A failure is recorded and carried forward, never raised: the video
+        # model is not in the prediction path, so a participant who sat off
+        # camera should still get their report. The reason is stored so the
+        # gap is explicable rather than mysterious.
+        video_features = None
+        video_features_error = None
+        try:
+            from app.real.video_features import VideoFeatureError, compute_video_features
+            video_features = [float(v) for v in compute_video_features(video_path)]
+        except Exception as e:
+            video_features_error = str(e)
+            logger.warning("Video features unavailable for session %s: %s", session_id, e)
+
         p_text = _predict_proba(text_bundle, text_raw)
         p_audio = _predict_proba(audio_bundle, audio_raw)
 
@@ -146,6 +167,9 @@ def run_real_inference(
             # The full conversation in DAIC-WOZ format, so a real session can
             # join a training set built from the corpus without a second parser.
             daic_transcript=build_transcript(transcript),
+            participant_transcript=build_participant_transcript(transcript),
+            video_features=video_features,
+            video_features_error=video_features_error,
             # How each speaker was identified. Stored with the session so the
             # decision that determined whose voice was scored stays auditable
             # long after the audio itself has been deleted.

@@ -110,6 +110,25 @@ public class Session {
     @Column(name = "daic_transcript_path", length = 500)
     private String daicTranscriptPath;
 
+    /** The same conversation filtered to the participant — what the text model reads. */
+    @Column(name = "participant_transcript_path", length = 500)
+    private String participantTranscriptPath;
+
+    /**
+     * Whether everything derivable from the recording has been stored.
+     *
+     * The recording may only be deleted when this is true. Computed once at
+     * the end of processing rather than re-derived at deletion time: the check
+     * spans several tables, and a privacy-critical decision should not depend
+     * on the same join being written correctly in two places.
+     */
+    @Column(name = "derived_data_complete", nullable = false)
+    @Builder.Default
+    private boolean derivedDataComplete = false;
+
+    @Column(name = "purge_blocked_reason", length = 500)
+    private String purgeBlockedReason;
+
     /**
      * Why this session produced no report.
      *

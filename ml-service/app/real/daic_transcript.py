@@ -61,6 +61,27 @@ def normalize_text(text: str) -> str:
     return re.sub(r"\s+", " ", cleaned).strip()
 
 
+def build_participant_transcript(transcript) -> str:
+    """
+    The same file, filtered to the participant's turns.
+
+    Kept as its own artifact rather than derived on demand: this is exactly
+    what the text model consumes, and a training script should not have to
+    re-implement the filter (and risk implementing it differently) to get at
+    it. Same columns, same format, so the two files parse identically.
+    """
+    lines = [HEADER]
+    for segment in sorted(transcript.segments, key=lambda s: s.start):
+        if segment.speaker != transcript.participant_speaker:
+            continue
+        value = normalize_text(segment.text)
+        if not value:
+            continue
+        lines.append(
+            f"{segment.start:.3f}\t{segment.end:.3f}\t{PARTICIPANT_LABEL}\t{value}")
+    return "\r\n".join(lines) + "\r\n"
+
+
 def build_transcript(transcript) -> str:
     """
     Render a DiarizedTranscript as DAIC-WOZ text.

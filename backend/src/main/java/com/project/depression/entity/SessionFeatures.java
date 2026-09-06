@@ -44,6 +44,18 @@ public class SessionFeatures {
     @Column(name = "text_features", columnDefinition = "jsonb")
     private double[] textFeatures;
 
+    /**
+     * Facial geometry over the session. Null when no face could be measured —
+     * a recording with the participant off camera still has usable audio and
+     * text, so this is a reason to store less, not to fail.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "video_features", columnDefinition = "jsonb")
+    private double[] videoFeatures;
+
+    @Column(name = "video_features_error", length = 500)
+    private String videoFeaturesError;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "audio_features", columnDefinition = "jsonb")
     private double[] audioFeatures;

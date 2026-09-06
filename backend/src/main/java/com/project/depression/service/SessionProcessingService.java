@@ -47,6 +47,7 @@ public class SessionProcessingService {
     private final MlServiceClient mlServiceClient;
     private final DatasetEligibilityService datasetEligibilityService;
     private final VoiceprintService voiceprintService;
+    private final MediaPurgeService mediaPurgeService;
     private final org.springframework.transaction.support.TransactionTemplate newTransaction;
 
     public SessionProcessingService(
@@ -56,6 +57,7 @@ public class SessionProcessingService {
             MlServiceClient mlServiceClient,
             DatasetEligibilityService datasetEligibilityService,
             VoiceprintService voiceprintService,
+            MediaPurgeService mediaPurgeService,
             org.springframework.transaction.PlatformTransactionManager transactionManager
     ) {
         this.sessionRepository = sessionRepository;
@@ -64,6 +66,7 @@ public class SessionProcessingService {
         this.mlServiceClient = mlServiceClient;
         this.datasetEligibilityService = datasetEligibilityService;
         this.voiceprintService = voiceprintService;
+        this.mediaPurgeService = mediaPurgeService;
         this.newTransaction = new org.springframework.transaction.support.TransactionTemplate(transactionManager);
         this.newTransaction.setPropagationBehavior(
                 org.springframework.transaction.TransactionDefinition.PROPAGATION_REQUIRES_NEW);
@@ -110,6 +113,7 @@ public class SessionProcessingService {
             voiceprintService.recordCompanionLabels(session, mlResponse.companion_speakers());
             session.setFailureReason(null);
             storeDaicTranscript(session, mlResponse.daic_transcript());
+            storeParticipantTranscript(session, mlResponse.participant_transcript());
             Map<String, Double> modalityContributions = mlResponse.modality_contributions();
 
             Report report = Report.builder()
@@ -139,6 +143,13 @@ public class SessionProcessingService {
             sessionRepository.save(session);
 
             datasetEligibilityService.evaluate(session);
+
+            // Last, and only after every derived artifact is committed. The
+            // recording is the one thing that cannot be regenerated, so it is
+            // destroyed only once what replaces it is definitely on disk —
+            // MediaPurgeService re-checks each artifact and keeps the video if
+            // any is missing.
+            mediaPurgeService.purgeIfComplete(sessionId);
         } catch (HttpClientErrorException.UnprocessableEntity e) {
             // The ML service refused to score rather than failing. Two distinct
             // refusals arrive this way and they are NOT the same thing: the
@@ -222,6 +233,27 @@ public class SessionProcessingService {
                 raw == null || raw.isBlank() ? "The session could not be scored." : raw);
     }
 
+    /** The participant's turns alone — what the text model actually reads. */
+    private void storeParticipantTranscript(Session session, String content) {
+        if (content == null || content.isBlank()) {
+            return;
+        }
+        try {
+            Path target = Path.of(session.getVideoPath()).getParent()
+                    .resolve("PARTICIPANT_TRANSCRIPT.csv");
+            Files.writeString(target, content, StandardCharsets.UTF_8);
+            session.setParticipantTranscriptPath(target.toString());
+        } catch (Exception e) {
+            log.error("Could not write the participant transcript for session {}",
+                    session.getId(), e);
+        }
+    }
+
+    private static String truncate(String value, int max) {
+        if (value == null) return null;
+        return value.length() <= max ? value : value.substring(0, max - 3) + "...";
+    }
+
     /**
      * Write the DAIC-WOZ-format transcript beside the session's video.
      *
@@ -261,11 +293,14 @@ public class SessionProcessingService {
         try {
             double[] text = toArray(mlResponse.text_features());
             double[] audio = toArray(mlResponse.audio_features());
+            double[] video = toArray(mlResponse.video_features());
 
             sessionFeaturesRepository.save(SessionFeatures.builder()
                     .session(session)
                     .textFeatures(text)
                     .audioFeatures(audio)
+                    .videoFeatures(video)
+                    .videoFeaturesError(truncate(mlResponse.video_features_error(), 500))
                     .textFeatureCount(text == null ? null : text.length)
                     .audioFeatureCount(audio == null ? null : audio.length)
                     .transcriptText(mlResponse.transcript_text())

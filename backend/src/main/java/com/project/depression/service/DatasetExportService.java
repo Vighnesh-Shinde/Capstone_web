@@ -85,6 +85,8 @@ public class DatasetExportService {
             // participantRef -> transcript path on disk, written after
             // features.csv is closed.
             Map<String, String> transcriptsToExport = new LinkedHashMap<>();
+            Map<String, String> participantTranscriptsToExport = new LinkedHashMap<>();
+            int videoWidth = 0;
 
             zip.putNextEntry(new ZipEntry("features.csv"));
             Writer featuresCsv = new OutputStreamWriter(zip, StandardCharsets.UTF_8);
@@ -130,11 +132,14 @@ public class DatasetExportService {
                 SessionFeatures features = featuresOpt.get();
 
                 if (!headerWritten) {
+                    videoWidth = features.getVideoFeatures() == null
+                            ? 0 : features.getVideoFeatures().length;
                     writeFeatureHeader(featuresCsv,
-                            features.getTextFeatures().length, features.getAudioFeatures().length);
+                            features.getTextFeatures().length, features.getAudioFeatures().length,
+                            videoWidth);
                     headerWritten = true;
                 }
-                writeFeatureRow(featuresCsv, session, judgment, features);
+                writeFeatureRow(featuresCsv, session, judgment, features, videoWidth);
 
                 metadata.append(csv(session.getId().toString())).append(',')
                         .append(csv(session.getParticipantRef())).append(',')
@@ -152,6 +157,10 @@ public class DatasetExportService {
                 // closed corrupts the archive.
                 if (session.getDaicTranscriptPath() != null) {
                     transcriptsToExport.put(session.getParticipantRef(), session.getDaicTranscriptPath());
+                }
+                if (session.getParticipantTranscriptPath() != null) {
+                    participantTranscriptsToExport.put(
+                            session.getParticipantRef(), session.getParticipantTranscriptPath());
                 }
 
                 exported++;
@@ -182,6 +191,18 @@ public class DatasetExportService {
                 }
             }
 
+            for (Map.Entry<String, String> entry : participantTranscriptsToExport.entrySet()) {
+                try {
+                    String content = Files.readString(Path.of(entry.getValue()), StandardCharsets.UTF_8);
+                    String safeRef = entry.getKey().replaceAll("[^A-Za-z0-9._-]", "_");
+                    writeEntry(zip, "transcripts_participant_only/" + safeRef
+                            + "_PARTICIPANT_TRANSCRIPT.csv", content);
+                } catch (IOException e) {
+                    log.warn("Dataset export: could not read participant transcript {}",
+                            entry.getValue(), e);
+                }
+            }
+
             writeEntry(zip, "metadata.csv", metadata.toString());
             writeEntry(zip, "README.txt", readme(
                     exported, approved.size(), skippedNoFeatures, skippedNoJudgment,
@@ -196,7 +217,8 @@ public class DatasetExportService {
                 skippedNoFeatures, skippedNoJudgment, skippedWithdrawn);
     }
 
-    private void writeFeatureHeader(Writer writer, int textWidth, int audioWidth) throws IOException {
+    private void writeFeatureHeader(Writer writer, int textWidth, int audioWidth, int videoWidth)
+            throws IOException {
         StringBuilder header = new StringBuilder("session_id,label");
         for (int i = 0; i < textWidth; i++) {
             header.append(",text_").append(i);
@@ -204,11 +226,20 @@ public class DatasetExportService {
         for (int i = 0; i < audioWidth; i++) {
             header.append(",audio_").append(i);
         }
+        // Video columns are emitted only when the FIRST exported row had them,
+        // fixing the width for the whole file. A CSV cannot have a ragged
+        // header, and sessions differ: a participant who sat off camera has no
+        // video features while the next one does. Rows without them are padded
+        // with empty cells, which every training loader reads as missing.
+        for (int i = 0; i < videoWidth; i++) {
+            header.append(",video_").append(i);
+        }
         writer.write(header.append('\n').toString());
     }
 
     private void writeFeatureRow(
-            Writer writer, Session session, CounselorJudgment judgment, SessionFeatures features
+            Writer writer, Session session, CounselorJudgment judgment, SessionFeatures features,
+            int videoWidth
     ) throws IOException {
         StringBuilder row = new StringBuilder(session.getId().toString())
                 .append(',')
@@ -221,6 +252,15 @@ public class DatasetExportService {
         }
         for (double v : features.getAudioFeatures()) {
             row.append(',').append(v);
+        }
+        for (int i = 0; i < videoWidth; i++) {
+            row.append(',');
+            double[] video = features.getVideoFeatures();
+            if (video != null && i < video.length) {
+                row.append(video[i]);
+            }
+            // else: left empty, which is how a loader learns this session had
+            // no measurable face rather than a face measuring exactly zero.
         }
         writer.write(row.append('\n').toString());
     }
@@ -240,6 +280,13 @@ public class DatasetExportService {
 
                 CONTENTS
                 --------
+                transcripts_participant_only/
+                               The same conversations filtered to the participant's turns
+                                 only — exactly what the text model consumes. Provided as
+                                 its own file so a training script does not have to
+                                 re-implement the speaker filter, and risk implementing it
+                                 differently from the pipeline that produced the features.
+
                 transcripts/   One <participant>_TRANSCRIPT.csv per session, in the
                                  DAIC-WOZ corpus format: tab-separated, CRLF, with the
                                  columns start_time, stop_time, speaker, value, and text
@@ -254,7 +301,12 @@ public class DatasetExportService {
                                  present is "Companion 1", "Companion 2", and so on;
                                  their speech is recorded but was excluded from analysis.
 
-                features.csv   One row per session.
+                features.csv   One row per session. Columns: session_id, label, then
+                                 text_0.., audio_0.., and video_0.. where available.
+                                 Video columns are blank for sessions where no face could
+                                 be measured (participant off camera, or a dark room) —
+                                 blank rather than zero, so a loader can tell "not
+                                 measured" from "measured as zero".
                                  session_id  — matches metadata.csv
                                  label       — 1 = depressed, 0 = not depressed
                                  text_0..N   — text model input vector, in model column order
