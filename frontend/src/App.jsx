@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import ProtectedRoute from "./components/ProtectedRoute";
+import PublicOnlyRoute from "./components/PublicOnlyRoute";
 import Layout from "./components/Layout";
 import Login from "./pages/Login";
 import ForgotPassword from "./pages/ForgotPassword";
@@ -46,11 +47,21 @@ export default function App() {
       <AuthProvider>
         <Layout>
           <Routes>
-            <Route path="/login" element={<Login />} />
-            <Route path="/forgot-password" element={<ForgotPassword />} />
+            {/* Sign-in pages, unreachable once signed in. Without this guard,
+                pressing Back after signing in rendered the login form inside
+                the authenticated shell — nav, avatar and all. */}
+            <Route element={<PublicOnlyRoute />}>
+              <Route path="/login" element={<Login />} />
+              <Route path="/forgot-password" element={<ForgotPassword />} />
+              <Route path="/request-access" element={<RequestCounselorAccess />} />
+            </Route>
+
+            {/* Reachable signed in OR out, and that matters:
+                /verify-email is how a signed-in user confirms an email change,
+                and /reset-password is a recovery route that should not be
+                blocked just because a session exists on this device. */}
             <Route path="/reset-password" element={<ResetPassword />} />
             <Route path="/verify-email" element={<VerifyEmail />} />
-            <Route path="/request-access" element={<RequestCounselorAccess />} />
 
             {/* Public: a counselor must be able to reach crisis guidance and the
                 privacy notice without being signed in. */}
