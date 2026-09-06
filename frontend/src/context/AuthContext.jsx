@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useState } from "react";
 import { login as loginRequest, loginWithGoogle as googleLoginRequest } from "../api/auth";
+import { UNAUTHORIZED_EVENT } from "../api/client";
 
 const AuthContext = createContext(null);
 
@@ -10,10 +11,25 @@ export function AuthProvider({ children }) {
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     const token = localStorage.getItem("token");
+    // Both, deliberately: half a session is not a session, and treating one
+    // as valid is how the app ends up rendering a signed-in shell for
+    // somebody the server will refuse.
     if (storedUser && token) {
       setUser(JSON.parse(storedUser));
     }
     setLoading(false);
+  }, []);
+
+  // The server rejecting the session has to clear it HERE, because this is
+  // where the rest of the app reads it from. The API layer emptying
+  // localStorage on its own left React holding a user that storage no longer
+  // had — which is what rendered the sign-in page inside the signed-in shell.
+  useEffect(() => {
+    function handleUnauthorized() {
+      setUser(null);
+    }
+    window.addEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(UNAUTHORIZED_EVENT, handleUnauthorized);
   }, []);
 
   async function login(identifier, password, captchaToken) {
