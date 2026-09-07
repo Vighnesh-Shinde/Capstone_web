@@ -12,7 +12,7 @@ function formatDateTime(value) {
 
 function predictionLabel(prediction) {
   if (!prediction) return "—";
-  return prediction === "depressed" ? "Elevated indicators" : "No elevated indicators";
+  return prediction === "depressed" ? "Depressed" : "Not depressed";
 }
 
 export default function ParticipantDetail() {

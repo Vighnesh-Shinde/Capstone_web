@@ -5,6 +5,7 @@ import { getReport, getSession } from "../api/sessions";
 import ExplanationFactorBar from "../components/ExplanationFactorBar";
 import ModalityContributions from "../components/ModalityContributions";
 import ConfidenceRing from "../components/ConfidenceRing";
+import PlainExplanation from "../components/PlainExplanation";
 import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
 import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
@@ -78,14 +79,12 @@ export default function Report() {
                   <span className="verdict-participant">{session.participantRef}</span>
                 )}
                 <span className={`verdict-headline ${report.prediction}`}>
-                  {report.prediction === "depressed"
-                    ? "Elevated indicators"
-                    : "No elevated indicators"}
+                  {report.prediction === "depressed" ? "Depressed" : "Not depressed"}
                 </span>
                 <span className="verdict-sub">
                   {report.prediction === "depressed"
-                    ? "Recommend follow-up. Weigh this against your own assessment."
-                    : "The model found no elevated indicators in this session."}
+                    ? "Screening result only. Recommend follow-up, weighed against your own assessment."
+                    : "Screening result only. The model saw no depression pattern in this session."}
                 </span>
                 <span className="verdict-meta">
                   Generated {new Date(report.createdAt).toLocaleString()}
@@ -121,8 +120,8 @@ export default function Report() {
           <div className="card">
             <h2>Explainability breakdown</h2>
             <p className="muted">
-              Factors are sorted by how strongly they influenced the prediction. Positive values
-              push toward "depressed"; negative values push toward "not depressed".
+              What the model measured in the participant&apos;s speech, strongest first.
+              Each one says what was observed and which way it pushed the result.
             </p>
             <div className="factor-list">
               {report.explanationFactors.map((factor) => (
@@ -130,6 +129,15 @@ export default function Report() {
               ))}
             </div>
           </div>
+
+          {/* Placed after the technical breakdown and before the counsellor's
+              own assessment: it is the same evidence in language a participant
+              can follow, and it belongs with the reasoning rather than as an
+              afterthought at the end. */}
+          <PlainExplanation
+            factors={report.explanationFactors}
+            prediction={report.prediction}
+          />
 
           <div className="card">
             <h2>Counselor assessment</h2>

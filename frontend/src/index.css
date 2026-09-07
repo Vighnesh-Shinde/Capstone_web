@@ -1819,3 +1819,71 @@ select option:disabled { color: var(--text-mute); }
     position: static;
   }
 }
+
+/* ============================================================
+   Plain-language explanation
+   ============================================================ */
+
+/* Visually distinct from the clinical cards around it: this section is
+   written to be read WITH a participant, and the shift in tone should be
+   visible before a word is read. */
+.plain-explanation {
+  border-left: 3px solid var(--violet);
+  background: linear-gradient(180deg, var(--violet-soft) 0%, var(--surface) 220px);
+}
+
+.plain-block { margin-top: 20px; }
+.plain-block:first-of-type { margin-top: 12px; }
+
+.plain-block h3 {
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--text-h);
+  margin-bottom: 8px;
+}
+
+/* Larger and looser than body copy — this is the part likely to be read off
+   a screen aloud, or turned toward someone sitting across a desk. */
+.plain-block p,
+.plain-block li {
+  font-size: 15px;
+  line-height: 1.75;
+}
+
+.plain-block ul { margin: 8px 0 0; padding-left: 22px; }
+.plain-block li { margin-bottom: 5px; }
+
+.plain-caution {
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: var(--r-sm);
+  background: var(--warn-bg);
+  color: var(--warn);
+}
+
+/* --- explainability rows --- */
+
+/* States the direction in words. A signed number only means something once
+   you know the sign convention, and that legend was paragraphs away. */
+.factor-direction {
+  font-size: 11.5px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.factor-direction.positive { color: var(--warn); }
+.factor-direction.negative { color: var(--ok); }
+
+/* The model's own column name, demoted beneath the readable sentence but
+   still present for anyone auditing a result against the training data. */
+.factor-technical {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-mute);
+}
+
+.factor-weight { font-variant-numeric: tabular-nums; }
