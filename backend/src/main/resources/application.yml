@@ -88,6 +88,12 @@ app:
     # Must match ML_ADMIN_TOKEN in ml-service/.env. If unset, the ML service
     # refuses those endpoints outright rather than allowing them unauthenticated.
     admin-token: ${ML_ADMIN_TOKEN:}
+    # How long to wait for a session to be processed. The pipeline runs ffmpeg,
+    # Whisper, diarization, sentence embeddings and facial landmarks over the
+    # whole recording on CPU, so this scales with session length, not file size.
+    # Raise it if long sessions time out; the work is asynchronous and nobody is
+    # sitting waiting on the request.
+    pipeline-timeout-minutes: ${ML_PIPELINE_TIMEOUT_MINUTES:60}
   models:
     # Where uploaded model weights are written. The ML service reads the same
     # directory, so in a containerised deployment this must be a shared volume.

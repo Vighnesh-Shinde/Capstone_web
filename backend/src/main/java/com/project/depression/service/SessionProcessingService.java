@@ -169,6 +169,21 @@ public class SessionProcessingService {
                             : SessionStatus.FAILED);
             session.setFailureReason(refusal.message());
             sessionRepository.save(session);
+        } catch (org.springframework.web.client.ResourceAccessException e) {
+            // A timeout or a dropped connection, not a bad recording. Told
+            // apart because the generic wording sends the counsellor to check a
+            // file that is perfectly fine — and because the analysis service
+            // usually finishes the work anyway, so re-uploading is the right
+            // advice rather than "contact your administrator".
+            log.error("Could not reach the analysis service for session {} "
+                    + "(timeout or connection loss)", sessionId, e);
+            session.setStatus(SessionStatus.FAILED);
+            session.setFailureReason(
+                    "The analysis service did not respond in time. The recording itself is "
+                            + "probably fine — long sessions take longer to process. Try "
+                            + "uploading it again, and tell your administrator if it keeps "
+                            + "timing out.");
+            sessionRepository.save(session);
         } catch (Exception e) {
             log.error("ML processing failed for session {}", sessionId, e);
             session.setStatus(SessionStatus.FAILED);
