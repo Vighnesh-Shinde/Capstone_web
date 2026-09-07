@@ -453,6 +453,27 @@ Admin → **Privacy**.
   prebuilt wheels for very new Python versions (3.11 does, reliably)
 - Docker Desktop (for Postgres only)
 
+## 0. Check nothing is already running
+
+Each service binds a fixed port, so a second copy fails with
+`[Errno 10048] only one usage of each socket address` (or, for the backend,
+`Port 8080 was already in use`). That error always means the port is taken —
+usually by a copy you started earlier and forgot.
+
+```bash
+netstat -ano | findstr "LISTENING" | findstr ":5433 :8000 :8080 :5173"
+```
+
+Nothing listed for a port means it is free. To take a port back, kill the
+process id in the last column:
+
+```bash
+taskkill /PID <pid> /F
+```
+
+Postgres is the exception — it runs in Docker, and `docker compose up -d` is
+safe to re-run whether or not it is already up.
+
 ## 1. Start Postgres
 
 ```bash
