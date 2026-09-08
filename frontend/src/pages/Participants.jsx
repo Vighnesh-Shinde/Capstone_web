@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { useReturnState } from "../hooks/useReturnTo";
+import { LoadingState, EmptyState, ErrorState } from "../components/states";
+import { IconParticipants, IconSearch } from "../components/StateIcons";
 import { listParticipants } from "../api/participants";
 
 function formatDate(value) {
@@ -64,25 +66,27 @@ export default function Participants() {
         </div>
       )}
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {loading && <p className="muted">Loading participants…</p>}
+      {error && <ErrorState message={error} />}
+      {loading && <LoadingState variant="table" rows={4} label="Loading participants" />}
 
       {!loading && !error && participants.length === 0 && (
-        <div className="card empty-state">
-          <p>No participants yet.</p>
-          <p className="muted">
-            A participant is created the first time you upload a session for them. Upload a
-            second session under the same reference and it groups with the first.
-          </p>
-          <Link to="/sessions/new" className="btn-primary">
-            Record your first session
-          </Link>
+        <div className="card">
+          <EmptyState
+            icon={<IconParticipants />}
+            title="No participants yet"
+            action={{ label: "Record your first session", to: "/sessions/new" }}
+          >
+            A participant is created the first time you upload a session for them. Upload
+            a second session under the same reference and it groups with the first.
+          </EmptyState>
         </div>
       )}
 
       {!loading && participants.length > 0 && filtered.length === 0 && (
-        <div className="card empty-state">
-          <p>No participants match &ldquo;{search}&rdquo;.</p>
+        <div className="card">
+          <EmptyState icon={<IconSearch />} title={`No participants match “${search}”`}>
+            Check the reference, or clear the search to see everyone.
+          </EmptyState>
         </div>
       )}
 

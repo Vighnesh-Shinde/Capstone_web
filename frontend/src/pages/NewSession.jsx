@@ -112,7 +112,7 @@ export default function NewSession() {
       if (videoPreviewRef.current) {
         videoPreviewRef.current.srcObject = stream;
       }
-    } catch (err) {
+    } catch {
       setError("Could not access camera/microphone. Please grant permission or use file upload instead.");
     }
   }
@@ -206,7 +206,7 @@ export default function NewSession() {
         participantRef.trim(), file, consent, language, companions
       );
       navigate(`/sessions/${session.id}`);
-    } catch (err) {
+    } catch {
       setError(err.response?.data?.message || "Failed to create session.");
       setSubmitting(false);
     }

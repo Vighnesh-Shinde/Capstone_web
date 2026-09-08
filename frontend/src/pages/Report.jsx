@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { useParams } from "react-router-dom";
 import { useReturnTo } from "../hooks/useReturnTo";
 import { getReport, getSession } from "../api/sessions";
 import ExplanationFactorBar from "../components/ExplanationFactorBar";

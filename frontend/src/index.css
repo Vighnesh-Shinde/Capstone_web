@@ -259,7 +259,24 @@ a { color: var(--violet); }
   .app-main, .app-topbar, .app-footer { padding-left: 18px; padding-right: 18px; }
 }
 
-.page { max-width: 1180px; }
+/* Centred, and allowed to breathe on larger displays.
+   
+   Previously capped at 1180px with no auto margin, which left 465px of dead
+   space hard against the right edge at 1920x1080 (measured, not estimated) —
+   the content sat off-centre with a void beside it.
+   
+   Centring alone would balance the gap; the width steps up as well so wide
+   screens actually gain something. It is still capped: a table stretched to
+   1900px puts the row's first and last cells so far apart the eye loses the
+   line between them. Prose pages stay much narrower still — see .prose-page. */
+.page {
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+}
+
+@media (min-width: 1600px) { .page { max-width: 1320px; } }
+@media (min-width: 1800px) { .page { max-width: 1420px; } }
 
 .page-header {
   display: flex;
@@ -783,7 +800,9 @@ code {
 
 .placeholder-note { font-size: 12.5px; color: var(--text-mute); font-style: italic; }
 
-.prose-page { max-width: 760px; }
+/* Long-form reading: held to a comfortable measure regardless of screen
+   width, and centred so it is not stranded against the sidebar. */
+.prose-page { max-width: 760px; margin-left: auto; margin-right: auto; }
 .prose-page h2 { font-size: 19px; margin-top: 34px; }
 .prose-page ul, .prose-page ol { padding-left: 22px; margin: 0 0 16px; }
 .prose-page li { margin-bottom: 8px; }
@@ -1887,3 +1906,146 @@ select option:disabled { color: var(--text-mute); }
 }
 
 .factor-weight { font-variant-numeric: tabular-nums; }
+
+/* ============================================================
+   Loading / empty / error states
+   ============================================================ */
+
+.loading-state { padding: 4px 0; }
+.loading-text { padding: 24px 0; }
+
+/* Visually hidden but still announced. Used so a skeleton — which is
+   meaningless to a screen reader — is accompanied by a spoken "Loading". */
+.sr-only {
+  position: absolute;
+  width: 1px; height: 1px;
+  padding: 0; margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.skeleton {
+  display: block;
+  border-radius: 6px;
+  background: linear-gradient(
+    90deg,
+    var(--surface-sunk) 25%,
+    var(--border-soft) 37%,
+    var(--surface-sunk) 63%
+  );
+  background-size: 400% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+.skeleton-line { height: 12px; width: 100%; }
+.skeleton-line.short { width: 40%; }
+.skeleton-line.tall { height: 26px; width: 62%; }
+
+@keyframes skeleton-sweep {
+  0%   { background-position: 100% 50%; }
+  100% { background-position: 0 50%; }
+}
+
+/* A sweeping gradient is motion, and vestibular sensitivity is common enough
+   that it should not be the only way to show progress. The block still reads
+   as a placeholder when static. */
+@media (prefers-reduced-motion: reduce) {
+  .skeleton { animation: none; }
+}
+
+.skeleton-cards {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.skeleton-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+
+.skeleton-table {
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 17px 20px;
+  border-bottom: 1px solid var(--border-soft);
+}
+
+.skeleton-row:last-child { border-bottom: none; }
+
+.skeleton-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 22px;
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+  background: var(--surface);
+}
+
+/* --- empty --- */
+
+.empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 6px;
+  padding: 46px 24px;
+}
+
+.empty-state-icon {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  margin-bottom: 6px;
+  border-radius: 50%;
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+
+.empty-state h3 { margin: 0; font-size: 15.5px; }
+
+/* Capped so the explanation wraps into a readable column instead of one long
+   line stretched across a wide desktop. */
+.empty-state-body {
+  max-width: 46ch;
+  color: var(--text-mute);
+  font-size: 13.5px;
+  line-height: 1.6;
+}
+
+.empty-state .btn-primary { margin-top: 14px; }
+
+/* --- error --- */
+
+.error-state {
+  display: flex;
+  gap: 14px;
+  padding: 22px;
+  border: 1px solid var(--danger-bg);
+  border-left: 3px solid var(--danger);
+  border-radius: var(--r);
+  background: var(--danger-bg);
+}
+
+.error-state-icon { color: var(--danger); flex-shrink: 0; padding-top: 1px; }
+.error-state h3 { margin: 0 0 4px; font-size: 14.5px; color: var(--danger); }
+.error-state p { margin: 0 0 10px; }
+.error-state p:last-child { margin-bottom: 0; }

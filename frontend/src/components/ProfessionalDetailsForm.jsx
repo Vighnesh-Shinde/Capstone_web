@@ -193,7 +193,12 @@ export default function ProfessionalDetailsForm({ profile, name, username, onSav
       <label className="field-label" htmlFor="p-addr1">Practice address</label>
       <input id="p-addr1" type="text" placeholder="Street address" value={form.addressLine1}
              onChange={(e) => update("addressLine1", e.target.value)} />
+      {/* Second address line, visually continuing the field above it. It gets
+          its own accessible name rather than a visible label — a screen reader
+          otherwise announces it as an unnamed text box, while a sighted user
+          reads it as part of "Practice address" from position alone. */}
       <input id="p-addr2" type="text" placeholder="Building, floor, unit (optional)"
+             aria-label="Practice address, second line"
              value={form.addressLine2} onChange={(e) => update("addressLine2", e.target.value)} />
 
       <div className="field-row">

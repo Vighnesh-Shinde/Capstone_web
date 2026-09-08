@@ -3,6 +3,8 @@ import { Link, useSearchParams } from "react-router-dom";
 import { useReturnState } from "../hooks/useReturnTo";
 import { listSessions } from "../api/sessions";
 import StatusBadge from "../components/StatusBadge";
+import { LoadingState, EmptyState, ErrorState } from "../components/states";
+import { IconSearch, IconSessionsLarge } from "../components/StateIcons";
 import ResultTag from "../components/ResultTag";
 
 const STATUS_FILTERS = [
@@ -112,26 +114,37 @@ export default function Sessions() {
         />
       </div>
 
-      {error && <div className="alert alert-error">{error}</div>}
-      {loading && <p className="muted">Loading…</p>}
+      {error && <ErrorState message={error} onRetry={load} />}
 
-      {!loading && sessionsPage?.content.length === 0 && (
-        <div className="card empty-state">
-          <p>
-            {status || search
-              ? "No sessions match these filters."
-              : "No sessions yet."}
-          </p>
-          {(status || search) && (
-            <button
-              className="btn-secondary"
-              onClick={() => {
-                setSearch("");
-                setSearchParams(new URLSearchParams());
+      {/* A table skeleton rather than a line of text: the rows below settle
+          into the same shape, so the page does not jump when they land. */}
+      {loading && <LoadingState variant="table" rows={5} label="Loading sessions" />}
+
+      {!loading && !error && sessionsPage?.content.length === 0 && (
+        <div className="card">
+          {status || search ? (
+            <EmptyState
+              icon={<IconSearch />}
+              title="No sessions match these filters"
+              action={{
+                label: "Clear filters",
+                onClick: () => {
+                  setSearch("");
+                  setSearchParams(new URLSearchParams());
+                },
               }}
             >
-              Clear filters
-            </button>
+              Try a different status, or clear the filters to see everything.
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon={<IconSessionsLarge />}
+              title="No sessions yet"
+              action={{ label: "Start a session", to: "/sessions/new" }}
+            >
+              Upload an interview recording and it will be transcribed, separated by
+              speaker, and turned into a screening report for you to review.
+            </EmptyState>
           )}
         </div>
       )}
