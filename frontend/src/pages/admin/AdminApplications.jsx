@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import { listApplications } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
+import { LoadingState } from "../../components/states";
 
 const STATUS_FILTERS = [
   { label: "All", value: null },
@@ -46,7 +47,7 @@ export default function AdminApplications() {
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
-      {loading && <p className="muted">Loading...</p>}
+      {loading && <LoadingState variant="table" rows={4} label="Loading access requests" />}
 
       {!loading && applicationsPage && applicationsPage.content.length === 0 && (
         <div className="card empty-state">

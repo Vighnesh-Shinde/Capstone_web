@@ -12,6 +12,7 @@ import StatusBadge from "../../components/StatusBadge";
 import ProfileSummary from "../../components/ProfileSummary";
 import useReferenceData from "../../hooks/useReferenceData";
 import { getCountries } from "../../api/reference";
+import { LoadingState } from "../../components/states";
 
 export default function AdminApplicationDetail() {
   // Only used to render a flag and full country name beside the ISO code.
@@ -47,7 +48,7 @@ export default function AdminApplicationDetail() {
   }
 
   if (error) return <div className="page"><div className="alert alert-error">{error}</div></div>;
-  if (!application) return <div className="page"><p className="muted">Loading...</p></div>;
+  if (!application) return <div className="page"><LoadingState variant="panel" rows={3} label="Loading application" /></div>;
 
   return (
     <div className="page">

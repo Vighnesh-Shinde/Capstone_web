@@ -3,6 +3,7 @@ import PasswordInput from "../components/PasswordInput";
 import { changePassword, getProfile, updateProfile } from "../api/profile";
 import { useAuth } from "../context/AuthContext";
 import ProfessionalDetailsForm from "../components/ProfessionalDetailsForm";
+import { LoadingState } from "../components/states";
 
 const MIN_LENGTH = 10;
 
@@ -102,7 +103,7 @@ export default function Profile() {
   }
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading your profile…</p></div>;
+    return <div className="page"><LoadingState variant="panel" rows={3} label="Loading your profile" /></div>;
   }
 
   if (loadError) {

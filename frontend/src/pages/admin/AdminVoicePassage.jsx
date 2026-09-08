@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { getPassageHistory, updatePassage } from "../../api/enrollmentPassage";
+import { LoadingState } from "../../components/states";
 
 /**
  * Edit the passage every counsellor and companion reads to enrol a voice.
@@ -56,7 +57,7 @@ export default function AdminVoicePassage() {
   const unchanged = active && active.body === body.replace(/\s+/g, " ").trim();
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading…</p></div>;
+    return <div className="page"><LoadingState variant="panel" rows={3} label="Loading passage" /></div>;
   }
 
   return (

@@ -4,6 +4,7 @@ import { useReturnTo } from "../hooks/useReturnTo";
 import { getParticipant } from "../api/participants";
 import ParticipantTrendChart from "../components/ParticipantTrendChart";
 import StatusBadge from "../components/StatusBadge";
+import { LoadingState } from "../components/states";
 
 function formatDateTime(value) {
   if (!value) return "—";
@@ -43,7 +44,7 @@ export default function ParticipantDetail() {
   }, [id]);
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading history…</p></div>;
+    return <div className="page"><LoadingState variant="panel" rows={3} label="Loading history" /></div>;
   }
 
   if (error) {

@@ -4,6 +4,7 @@ import { getSessionStats, listSessions } from "../api/sessions";
 import { useAuth } from "../context/AuthContext";
 import StatusBadge from "../components/StatusBadge";
 import ResultTag from "../components/ResultTag";
+import { LoadingState } from "../components/states";
 
 /**
  * A greeting name, skipping any honorific.
@@ -50,7 +51,7 @@ export default function Dashboard() {
   }, []);
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading…</p></div>;
+    return <div className="page"><LoadingState variant="cards" rows={4} label="Loading your dashboard" /></div>;
   }
 
   if (error) {

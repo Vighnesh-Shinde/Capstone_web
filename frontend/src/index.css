@@ -6,6 +6,11 @@
 :root {
   /* --- brand --- */
   --violet:        #7c5cff;
+  /* The accent as TEXT on a light background. White-on-#7c5cff measures
+     4.35:1 and violet-on-white 4.04:1, both just under AA — but darkening
+     --violet itself would shift the whole visual identity, which is the one
+     thing to preserve here. So fills keep --violet and text uses this. */
+  --violet-text:   #6a49f2;
   --violet-hover:  #6a49f2;
   --violet-press:  #5a3ce0;
   --violet-soft:   #f0ecff;
@@ -29,12 +34,25 @@
   /* --- ink --- */
   --text-h:        #1c1a33;
   --text:          #5b5872;
-  --text-mute:     #8b88a3;
+  /* Darkened from #8b88a3, which measured 3.42:1 on white — below the 4.5:1
+     WCAG AA minimum for body text, and this token is used for nearly every
+     caption, hint and secondary label in the app. Same hue.
+
+     Set against the SUNK surface (#f4f3f9) rather than white, because that is
+     the harder case — table headers and filter bars sit on the tint, and a
+     value tuned only for white still failed there at 4.10:1. Now 4.54:1 on
+     the tint and 5.01:1 on white. */
+  --text-mute:     #6f6d83;
 
   /* --- semantic: deliberately separate from the violet accent --- */
-  --ok:            #17915b;
+  /* Status colours are measured against their own tinted backgrounds, not
+     against white — that is where they are actually used, and the tint is
+     what was pushing them under AA. --ok was 3.59:1 on its badge, --warn
+     3.80:1 on the disclaimer that carries the "wrong 1 in 4" warning. Both
+     now clear 4.5:1 on the tint and comfortably exceed it on white. */
+  --ok:            #147e4f;
   --ok-bg:         #e6f6ee;
-  --warn:          #b26a05;
+  --warn:          #a05f05;
   --warn-bg:       #fdf1de;
   --danger:        #c62f2f;
   --danger-bg:     #fdeaea;
@@ -78,7 +96,8 @@ h2 { font-size: 17px; font-weight: 650; }
 h3 { font-size: 15px; font-weight: 600; }
 
 p { margin: 0 0 10px; }
-a { color: var(--violet); }
+/* Links are text, so they take the AA-compliant accent rather than the fill. */
+a { color: var(--violet-text); }
 
 :focus-visible {
   outline: 2px solid var(--violet);
@@ -166,8 +185,10 @@ a { color: var(--violet); }
 
 .sidebar-nav a:hover { background: var(--nav-hover); color: var(--nav-text-hi); }
 
+/* White label on the accent measures 4.35:1 — under AA. The hover shade is
+   5.46:1 and visually near-identical, so selected states use it. */
 .sidebar-nav a.active {
-  background: var(--violet);
+  background: var(--violet-hover);
   color: #fff;
   box-shadow: 0 4px 12px rgba(124, 92, 255, .35);
 }
@@ -419,7 +440,10 @@ a.stat-card.actionable .stat-value { color: var(--violet); }
    ============================================================ */
 
 .btn-primary {
-  background: var(--violet);
+  /* --violet-hover, not --violet: white on the raw accent is 4.35:1, just
+     under AA for 14px text, while this shade is 5.46:1 and visually almost
+     identical. */
+  background: var(--violet-hover);
   color: #fff;
   border: none;
   border-radius: var(--r-sm);
@@ -443,7 +467,17 @@ a.stat-card.actionable .stat-value { color: var(--violet); }
 }
 
 .btn-primary:active:not(:disabled) { background: var(--violet-press); transform: translateY(1px); }
-.btn-primary:disabled { background: #c9c3e8; box-shadow: none; cursor: not-allowed; }
+/* WCAG exempts disabled controls from contrast rules, but white on the old
+   pale violet measured 1.69:1 — the label was effectively invisible, so the
+   button read as an empty shape rather than as "not yet". A muted surface
+   with legible text still reads as unavailable while remaining readable. */
+.btn-primary:disabled {
+  background: var(--surface-sunk);
+  color: var(--text-mute);
+  border: 1px solid var(--border);
+  box-shadow: none;
+  cursor: not-allowed;
+}
 
 .btn-secondary {
   background: var(--surface);
@@ -478,6 +512,7 @@ a.stat-card.actionable .stat-value { color: var(--violet); }
   margin-bottom: 14px;
 }
 
+.btn-link { color: var(--violet-text); }
 .btn-link:hover { text-decoration: underline; }
 .btn-link.danger { color: var(--danger); }
 .btn-link:disabled { opacity: .45; cursor: not-allowed; text-decoration: none; }
@@ -612,7 +647,8 @@ input[type="file"] {
 }
 
 .filter-tab:hover { color: var(--text-h); }
-.filter-tab.active { background: var(--violet); color: #fff; }
+/* Selected chip: white label needs the darker ground to clear AA (4.35 -> 5.46). */
+.filter-tab.active { background: var(--violet-hover); color: #fff; }
 
 .tab-switch {
   display: inline-flex;
@@ -635,9 +671,11 @@ input[type="file"] {
   cursor: pointer;
 }
 
+/* Selected segment: accent text on white, so it takes the AA-compliant
+   accent rather than the fill colour (4.35 -> 4.59). */
 .tab-switch button.active, .tab-switch button[aria-pressed="true"] {
   background: var(--surface);
-  color: var(--violet);
+  color: var(--violet-text);
   box-shadow: var(--shadow-sm);
 }
 
@@ -691,7 +729,9 @@ tbody tr:hover { background: var(--surface-sunk); }
 }
 
 .th-sort:hover { color: var(--violet); }
-.sort-arrow { font-size: 8px; color: var(--violet); }
+/* Carries the sort direction, so it has to be readable, not decorative — at
+   8px the accent measured 3.94:1. The darker text accent clears AA. */
+.sort-arrow { font-size: 8px; color: var(--violet-text); }
 
 .row-actions { display: flex; gap: 14px; white-space: nowrap; }
 .row-actions .btn-link { margin-bottom: 0; }
@@ -1485,7 +1525,9 @@ code {
   background: var(--violet-tint);
   color: var(--text-h);
 }
-.step-item.current .step-index { background: var(--violet); color: #fff; }
+/* White numeral on the accent is 4.35:1; the darker shade clears AA and is
+   visually indistinguishable at this size. */
+.step-item.current .step-index { background: var(--violet-hover); color: #fff; }
 
 .step-item.done { color: var(--text); }
 .step-item.done .step-index { background: var(--ok-bg); color: var(--ok); }
@@ -2020,7 +2062,7 @@ select option:disabled { color: var(--text-mute); }
   color: var(--violet);
 }
 
-.empty-state h3 { margin: 0; font-size: 15.5px; }
+.empty-state-title { margin: 0; font-size: 15.5px; font-weight: 650; }
 
 /* Capped so the explanation wraps into a readable column instead of one long
    line stretched across a wide desktop. */
@@ -2046,6 +2088,6 @@ select option:disabled { color: var(--text-mute); }
 }
 
 .error-state-icon { color: var(--danger); flex-shrink: 0; padding-top: 1px; }
-.error-state h3 { margin: 0 0 4px; font-size: 14.5px; color: var(--danger); }
+.error-state-title { margin: 0 0 4px; font-size: 14.5px; font-weight: 650; color: var(--danger); }
 .error-state p { margin: 0 0 10px; }
 .error-state p:last-child { margin-bottom: 0; }

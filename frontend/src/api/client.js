@@ -1,6 +1,30 @@
 import axios from "axios";
 
-const baseURL = import.meta.env.VITE_API_BASE_URL || "http://localhost:8080/api";
+/**
+ * Where the API lives, derived from wherever this page was served from.
+ *
+ * Opened at http://localhost:5173  -> http://localhost:8080/api
+ * Opened at http://172.22.50.217:5173 -> http://172.22.50.217:8080/api
+ *
+ * This replaces a hardcoded LAN address in frontend/.env. That address went
+ * stale the moment the machine joined a different network, and the symptom was
+ * miserable to diagnose: every screen sat on its loading state forever while
+ * the API answered curl perfectly, because the browser was dialling an IP that
+ * no longer existed and the backend never saw the request at all.
+ *
+ * Deriving it means localhost and LAN both work with no configuration, and
+ * there is one less value that can quietly rot. VITE_API_BASE_URL still wins
+ * when set, for deployments where the API is not on the same host.
+ *
+ * Note: reaching this from another device also needs that origin in the
+ * backend's CORS_ALLOWED_ORIGINS.
+ */
+function derivedBaseUrl() {
+  const { protocol, hostname } = window.location;
+  return `${protocol}//${hostname}:8080/api`;
+}
+
+const baseURL = import.meta.env.VITE_API_BASE_URL || derivedBaseUrl();
 
 /**
  * Fired when the server says the session is no longer valid.

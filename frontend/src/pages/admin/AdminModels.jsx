@@ -7,6 +7,7 @@ import {
 } from "../../api/admin";
 import { getLanguages } from "../../api/reference";
 import useReferenceData from "../../hooks/useReferenceData";
+import { LoadingState } from "../../components/states";
 
 const MODALITIES = [
   {
@@ -314,7 +315,7 @@ export default function AdminModels() {
       </form>
 
       <h2>Version history</h2>
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <LoadingState variant="cards" rows={3} label="Loading models" />}
 
       {!loading && versions.length === 0 && (
         <div className="card empty-state">

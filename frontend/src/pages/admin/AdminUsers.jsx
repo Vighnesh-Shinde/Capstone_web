@@ -6,6 +6,7 @@ import {
   suspendUser,
 } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
+import { LoadingState } from "../../components/states";
 
 const ROLE_FILTERS = [
   { label: "All", value: null },
@@ -107,7 +108,7 @@ export default function AdminUsers() {
 
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <LoadingState variant="table" rows={5} label="Loading users" />}
 
       {!loading && usersPage?.content.length === 0 && (
         <div className="card empty-state">

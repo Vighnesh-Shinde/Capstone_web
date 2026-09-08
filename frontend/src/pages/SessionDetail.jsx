@@ -5,6 +5,7 @@ import { getSession } from "../api/sessions";
 import ConsentRecord from "../components/ConsentRecord";
 import SessionNotes from "../components/SessionNotes";
 import StatusBadge from "../components/StatusBadge";
+import { LoadingState } from "../components/states";
 
 const POLL_INTERVAL_MS = 3000;
 
@@ -96,7 +97,7 @@ export default function SessionDetail() {
       <h1>Session status</h1>
 
       {error && <div className="alert alert-error">{error}</div>}
-      {!session && !error && <p className="muted">Loading…</p>}
+      {!session && !error && <LoadingState variant="panel" rows={2} label="Loading session" />}
 
       {session && (
         <>

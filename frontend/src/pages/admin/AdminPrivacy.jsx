@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { eraseParticipant, runRetentionSweep, searchParticipants } from "../../api/admin";
+import { LoadingState } from "../../components/states";
 
 function formatDate(value) {
   return value ? new Date(value).toLocaleDateString() : "—";
@@ -126,7 +127,7 @@ export default function AdminPrivacy() {
         />
       </div>
 
-      {loading && <p className="muted">Loading…</p>}
+      {loading && <LoadingState variant="panel" rows={3} label="Loading privacy tools" />}
 
       {!loading && participants.length === 0 && (
         <div className="card empty-state">

@@ -5,6 +5,7 @@ import { listParticipants } from "../api/participants";
 import LanguageSelect from "../components/LanguageSelect";
 import CompanionStep from "../components/CompanionStep";
 import VoiceprintGate from "../components/VoiceprintGate";
+import { LoadingState } from "../components/states";
 
 const initialConsent = {
   recording: false,
@@ -263,7 +264,12 @@ export default function NewSession() {
               <label className="field-label" htmlFor="existingParticipant">
                 Select participant
               </label>
-              {participantsLoading && <p className="muted">Loading participants...</p>}
+              {/* Text variant, not a skeleton: this fills a single picker inside a
+                  form, and a shimmering block would be heavier than the control
+                  it stands in for. */}
+              {participantsLoading && (
+                <LoadingState variant="text" label="Loading participants" />
+              )}
               {!participantsLoading && participants.length === 0 && (
                 <p className="muted">
                   No prior participants found for your account. Use "New participant" instead.

@@ -8,7 +8,16 @@
  * `role="alert"` so a screen reader announces a failure that appears after the
  * page has already settled, rather than leaving it silent.
  */
-export default function ErrorState({ title = "Something went wrong", message, onRetry }) {
+export default function ErrorState({
+  title = "Something went wrong",
+  message,
+  onRetry,
+  // Defaults to h2 for the same reason as EmptyState: these usually stand in
+  // for a page's main content, directly beneath its h1.
+  headingLevel = 2,
+}) {
+  const Heading = `h${headingLevel}`;
+
   return (
     <div className="error-state" role="alert">
       <span className="error-state-icon" aria-hidden="true">
@@ -19,7 +28,7 @@ export default function ErrorState({ title = "Something went wrong", message, on
         </svg>
       </span>
       <div>
-        <h3>{title}</h3>
+        <Heading className="error-state-title">{title}</Heading>
         {/* The caller passes a message already written for a person. Raw
             exception text never reaches here — it tells the user nothing and
             leaks how the server is built. */}

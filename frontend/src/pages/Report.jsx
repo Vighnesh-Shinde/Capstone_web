@@ -10,6 +10,7 @@ import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
 import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
 import SessionNotes from "../components/SessionNotes";
+import { LoadingState } from "../components/states";
 
 export default function Report() {
   const { id } = useParams();
@@ -67,7 +68,7 @@ export default function Report() {
         )}
       </header>
 
-      {loading && <p className="muted">Loading report...</p>}
+      {loading && <LoadingState variant="panel" rows={3} label="Loading report" />}
       {error && <div className="alert alert-error">{error}</div>}
 
       {report && (

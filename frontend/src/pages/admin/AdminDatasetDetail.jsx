@@ -3,6 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { approveDatasetSample, getDatasetSample, rejectDatasetSample } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
 import ExplanationFactorBar from "../../components/ExplanationFactorBar";
+import { LoadingState } from "../../components/states";
 
 export default function AdminDatasetDetail() {
   const { id } = useParams();
@@ -34,7 +35,7 @@ export default function AdminDatasetDetail() {
   }
 
   if (error) return <div className="page"><div className="alert alert-error">{error}</div></div>;
-  if (!sample) return <div className="page"><p className="muted">Loading...</p></div>;
+  if (!sample) return <div className="page"><LoadingState variant="panel" rows={3} label="Loading sample" /></div>;
 
   const maxAbsScore = sample.explanationFactors.reduce((max, f) => Math.max(max, Math.abs(f.contributionScore)), 0);
   const reviewable = sample.eligibilityStatus !== "EXCLUDED_NO_CONSENT";

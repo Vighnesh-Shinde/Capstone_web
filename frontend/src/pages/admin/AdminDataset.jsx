@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { downloadDatasetExport, listDatasetSamples } from "../../api/admin";
 import StatusBadge from "../../components/StatusBadge";
+import { LoadingState } from "../../components/states";
 
 const STATUS_FILTERS = [
   { label: "All", value: null },
@@ -114,7 +115,7 @@ export default function AdminDataset() {
 
       {error && <div className="alert alert-error">{error}</div>}
       {notice && <div className="alert alert-success">{notice}</div>}
-      {loading && <p className="muted">Loading...</p>}
+      {loading && <LoadingState variant="table" rows={4} label="Loading dataset" />}
 
       {!loading && samplesPage && samplesPage.content.length === 0 && (
         <div className="card empty-state">

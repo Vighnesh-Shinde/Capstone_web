@@ -10,6 +10,7 @@ import {
 } from "../api/settings";
 import { getVoiceprintStatus } from "../api/voiceprint";
 import PasswordInput from "../components/PasswordInput";
+import { LoadingState } from "../components/states";
 
 /**
  * The counsellor's settings, as sections down a sub-nav.
@@ -64,7 +65,7 @@ export default function Settings() {
   }
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading…</p></div>;
+    return <div className="page"><LoadingState variant="panel" rows={3} label="Loading settings" /></div>;
   }
 
   return (

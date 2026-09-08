@@ -10,11 +10,18 @@ import { Link } from "react-router-dom";
  * The icon is decorative and hidden from assistive technology; the heading and
  * body carry the meaning.
  */
-export default function EmptyState({ icon, title, children, action }) {
+export default function EmptyState({ icon, title, children, action, headingLevel = 2 }) {
+  // Configurable, defaulting to h2. These panels usually replace a page's
+  // whole content area, sitting directly under its h1 — a hardcoded h3 skipped
+  // a level there, which is exactly the kind of thing a screen-reader user
+  // navigating by heading notices and a sighted reviewer never does. Callers
+  // nested inside a section that already has an h2 pass headingLevel={3}.
+  const Heading = `h${headingLevel}`;
+
   return (
     <div className="empty-state">
       {icon && <span className="empty-state-icon" aria-hidden="true">{icon}</span>}
-      <h3>{title}</h3>
+      <Heading className="empty-state-title">{title}</Heading>
       {children && <div className="empty-state-body">{children}</div>}
 
       {action &&

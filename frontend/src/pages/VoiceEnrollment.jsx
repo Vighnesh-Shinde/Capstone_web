@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { enrollVoice, getEnrollmentPassage, getVoiceprintStatus } from "../api/voiceprint";
 import VoiceRecorder from "../components/VoiceRecorder";
+import { LoadingState } from "../components/states";
 
 /**
  * The counselor records their own voice so sessions can tell it apart from the
@@ -61,7 +62,7 @@ export default function VoiceEnrollment() {
   }
 
   if (loading) {
-    return <div className="page"><p className="muted">Loading…</p></div>;
+    return <div className="page"><LoadingState variant="panel" rows={2} label="Loading" /></div>;
   }
 
   if (done) {
