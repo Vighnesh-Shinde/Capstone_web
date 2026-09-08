@@ -755,7 +755,7 @@ tr.row-active, tr.row-active:hover { background: var(--violet-soft); }
 .status-completed, .status-approved, .status-active,
 .status-failed, .status-rejected, .status-suspended,
 .status-under-review, .status-awaiting-judgment, .status-excluded-no-consent,
-.status-speaker_unverified,
+.status-speaker_unverified, .status-too_short,
 .role-tag, .tag-active, .tag-warning {
   display: inline-block;
   padding: 4px 11px;
@@ -775,7 +775,7 @@ tr.row-active, tr.row-active:hover { background: var(--violet-soft); }
    when what they need to do is check who was in the room. */
 .status-pending, .status-review, .status-uploaded, .status-processing,
 .status-under-review, .status-awaiting-judgment, .status-speaker_unverified,
-.tag-warning {
+.status-too_short, .tag-warning {
   background: var(--warn-bg); color: var(--warn);
 }
 

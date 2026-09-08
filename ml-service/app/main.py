@@ -131,6 +131,7 @@ def process(request: ProcessRequest) -> ProcessResponse:
         )
 
     from app.languages import LanguageNotScorable
+    from app.real.adequacy import SessionTooShort
     from app.real.media_pipeline import SpeakerResolutionError
     from app.real.real_inference import run_real_inference
     try:
@@ -140,6 +141,13 @@ def process(request: ProcessRequest) -> ProcessResponse:
             request.language,
             counselor_embedding=request.counselor_embedding,
             companion_embeddings=request.companion_embeddings,
+        )
+    except SessionTooShort as e:
+        # 422 like the other refusals: the service is healthy and the request
+        # was fine. The recording is simply outside what the models can score.
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "SESSION_TOO_SHORT", "message": str(e)},
         )
     except SpeakerResolutionError as e:
         # 422, like the language refusal: the service is healthy and the request

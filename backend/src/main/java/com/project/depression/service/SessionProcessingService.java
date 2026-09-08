@@ -160,13 +160,15 @@ public class SessionProcessingService {
             log.warn("Session {} was not scored ({}): {}",
                     sessionId, refusal.code(), refusal.message());
 
-            session.setStatus(
-                    "SPEAKER_UNRESOLVED".equals(refusal.code())
-                            ? SessionStatus.SPEAKER_UNVERIFIED
-                            // A language with no models is not a speaker
-                            // problem, and labelling it one would send the
-                            // counselor looking for a third person in the room.
-                            : SessionStatus.FAILED);
+            // Each refusal gets the status that tells the counsellor what to
+            // actually do about it. Collapsing them into one would send someone
+            // hunting for a third person in the room when the real problem was
+            // that the interview ran two minutes.
+            session.setStatus(switch (refusal.code()) {
+                case "SPEAKER_UNRESOLVED" -> SessionStatus.SPEAKER_UNVERIFIED;
+                case "SESSION_TOO_SHORT" -> SessionStatus.TOO_SHORT;
+                default -> SessionStatus.FAILED;
+            });
             session.setFailureReason(refusal.message());
             sessionRepository.save(session);
         } catch (org.springframework.web.client.ResourceAccessException e) {

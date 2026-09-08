@@ -17,5 +17,20 @@ public enum SessionStatus {
      */
     SPEAKER_UNVERIFIED,
 
+    /**
+     * Transcribed, but too short to score.
+     *
+     * The models were trained on clinical interviews of 167-4,611 participant
+     * words; below that range the text stage returns a near-constant value
+     * that happens to clear the fusion threshold, so every short recording
+     * would be reported as depressed with a plausible-looking confidence.
+     *
+     * Its own status rather than FAILED because nothing went wrong and the
+     * counsellor's fix is specific: record a longer interview. Telling them
+     * the file was unreadable would send them to check a recording that plays
+     * perfectly.
+     */
+    TOO_SHORT,
+
     FAILED
 }

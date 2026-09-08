@@ -13,6 +13,7 @@ const STATUS_FILTERS = [
   { label: "Processing", value: "PROCESSING" },
   { label: "Uploaded", value: "UPLOADED" },
   { label: "Speakers unverified", value: "SPEAKER_UNVERIFIED" },
+  { label: "Too short", value: "TOO_SHORT" },
   { label: "Failed", value: "FAILED" },
 ];
 

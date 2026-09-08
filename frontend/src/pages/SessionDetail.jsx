@@ -163,6 +163,22 @@ export default function SessionDetail() {
             {/* A warning, not an error. The recording is usually fine — the
                 analysis declined to guess whose voice it was reading, which is
                 the correct outcome and something the counselor can resolve. */}
+            {/* Amber, not red, and phrased around what to do next: the file
+                is fine, the interview was simply shorter than anything the
+                models were trained on. */}
+            {session.status === "TOO_SHORT" && (
+              <div className="alert alert-warning">
+                <strong>This interview was too short to score.</strong>
+                <p>{session.failureReason}</p>
+                <p className="muted">
+                  The recording itself is fine and the transcript was produced
+                  normally — there is simply not enough of the participant&apos;s
+                  speech for the analysis to mean anything. Nothing needs fixing on
+                  your side beyond recording a fuller session.
+                </p>
+              </div>
+            )}
+
             {session.status === "SPEAKER_UNVERIFIED" && (
               <div className="alert alert-warning">
                 <strong>This session was transcribed but not scored.</strong>

@@ -22,6 +22,7 @@ import numpy as np
 
 from app.languages import DEFAULT_LANGUAGE, LanguageNotScorable
 from app.real import media_pipeline
+from app.real.adequacy import check_length
 from app.real.audio_features import compute_audio_features
 from app.real.daic_transcript import build_participant_transcript, build_transcript
 from app.real.model_loader import Models, scoring_languages
@@ -103,6 +104,13 @@ def run_real_inference(
         fusion_bundle = Models.fusion(language)
 
         text_raw = compute_text_features(transcript.participant_segments)
+
+        # Checked before anything is predicted. An interview shorter than the
+        # training range does not degrade the result gracefully — it pins the
+        # text model to a constant that clears the fusion threshold, so every
+        # such session reports "depressed" with a plausible confidence. See
+        # adequacy.py for the measurements behind this.
+        check_length(text_raw)
         audio_raw = compute_audio_features(transcript.wav_path, transcript)
 
         # Extracted here rather than in a later pass, because the recording is
