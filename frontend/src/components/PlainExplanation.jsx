@@ -23,6 +23,8 @@ export default function PlainExplanation({ factors, prediction }) {
   const summary = plainSummary(factors, prediction);
   if (!summary) return null;
 
+  const hasObservations = summary.observations.length > 0;
+
   return (
     <div className="card plain-explanation">
       <h2>In plain words</h2>
@@ -47,7 +49,7 @@ export default function PlainExplanation({ factors, prediction }) {
 
       <div className="plain-block">
         <h3>What it noticed</h3>
-        {summary.observations.length > 0 ? (
+        {hasObservations ? (
           <>
             <p>Compared with the recordings it learned from, this session had:</p>
             <ul>
@@ -63,16 +65,19 @@ export default function PlainExplanation({ factors, prediction }) {
 
       <div className="plain-block">
         <h3>What that means — and does not mean</h3>
+        {/* Without observations to point at, "patterns like these" refers to
+            nothing. The claim is worded generally in that case rather than
+            dangling. */}
         <p>
-          Patterns like these were <em>more common</em> among people who were
-          depressed in the recordings this system was trained on. That is all it
-          means. It is a similarity to a pattern,{" "}
+          {hasObservations ? "Patterns like these were" : "Patterns of this kind are"}{" "}
+          <em>more common</em> among people who were depressed in the recordings this
+          system was trained on. That is all it means. It is a similarity to a pattern,{" "}
           <strong>not a diagnosis, and not a measure of how someone feels</strong>.
         </p>
         <p>
-          There are ordinary reasons for every one of these. Somebody who is
-          tired, unwell, shy, distracted, or simply not in the mood to talk will
-          often speak in exactly the same way.
+          There are ordinary reasons for {hasObservations ? "every one of these" : "all of them"}.
+          Somebody who is tired, unwell, shy, distracted, or simply not in the mood to
+          talk will often speak in exactly the same way.
         </p>
         <p className="plain-caution">
           This tool is <strong>wrong about 1 time in every 4</strong>. It cannot
