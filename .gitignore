@@ -59,3 +59,9 @@ training/*.zip
 training/*.joblib
 training/*.report.json
 training/venv/
+
+# Training outputs: model bundles and their reports are build artefacts, not
+# source. They reach the app by being uploaded through Admin -> Models, which
+# validates them, not by being committed.
+training/*.joblib
+training/*.report.json
