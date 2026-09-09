@@ -65,3 +65,5 @@ training/venv/
 # validates them, not by being committed.
 training/*.joblib
 training/*.report.json
+__pycache__/
+*.pyc
