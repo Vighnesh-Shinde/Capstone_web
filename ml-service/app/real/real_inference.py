@@ -25,7 +25,7 @@ from app.real import media_pipeline
 from app.real.adequacy import check_length
 from app.real.audio_features import compute_audio_features
 from app.real.daic_transcript import build_participant_transcript, build_transcript
-from app.real.model_loader import Models, scoring_languages
+from app.real.model_loader import Models, fusion_input_modalities, scoring_languages
 from app.real.text_features import compute_text_features
 from app.schemas import ExplanationItem, ProcessResponse
 
@@ -79,6 +79,26 @@ def _explain_linear_pipeline(bundle, raw_features: np.ndarray, modality: str, to
     return items
 
 
+class VideoUnavailable(Exception):
+    """
+    The active fusion model needs a video probability and this recording has
+    none — usually because no face was visible long enough to measure.
+
+    Refused rather than scored with a guessed video input: substituting a
+    neutral value would silently change what the fusion model computes, and
+    dropping video would feed a three-input model two inputs.
+    """
+
+    def __init__(self, reason: str | None):
+        super().__init__(
+            "This deployment's analysis uses facial movement as well as speech, but no "
+            "usable face could be measured in this recording"
+            + (f" ({reason})" if reason else "")
+            + ". Make sure the participant's face is clearly in frame and re-upload, or "
+            "ask your administrator to switch to a text-and-audio fusion model."
+        )
+
+
 def run_real_inference(
     session_id: str,
     video_path: str,
@@ -117,10 +137,10 @@ def run_real_inference(
         # deleted once its derived data is stored. Anything not taken now is
         # gone for good.
         #
-        # A failure is recorded and carried forward, never raised: the video
-        # model is not in the prediction path, so a participant who sat off
-        # camera should still get their report. The reason is stored so the
-        # gap is explicable rather than mysterious.
+        # A failure is recorded here rather than raised: with a two-input
+        # fusion model video is not in the prediction, and a participant who
+        # sat off camera should still get their report. Only a three-input
+        # fusion turns a missing face into a refusal, below.
         video_features = None
         video_features_error = None
         try:
@@ -130,30 +150,47 @@ def run_real_inference(
             video_features_error = str(e)
             logger.warning("Video features unavailable for session %s: %s", session_id, e)
 
-        p_text = _predict_proba(text_bundle, text_raw)
-        p_audio = _predict_proba(audio_bundle, audio_raw)
+        probabilities = {
+            "text": _predict_proba(text_bundle, text_raw),
+            "audio": _predict_proba(audio_bundle, audio_raw),
+        }
 
-        # Order matters: the fusion model was trained on [text, audio].
-        p_final = _predict_proba(fusion_bundle, np.array([p_text, p_audio]))
+        # The fusion model's input width decides the path: two inputs is
+        # [text, audio], three is [text, audio, video]. Order is part of the
+        # contract — see FUSION_INPUT_WIDTHS in model_loader.
+        fusion_inputs = fusion_input_modalities(fusion_bundle)
+        video_bundle = None
+        if "video" in fusion_inputs:
+            if video_features is None:
+                raise VideoUnavailable(video_features_error)
+            video_bundle = Models.video(language)
+            probabilities["video"] = _predict_proba(video_bundle, np.asarray(video_features))
+
+        p_final = _predict_proba(
+            fusion_bundle, np.array([probabilities[m] for m in fusion_inputs]))
         prediction = "depressed" if p_final >= fusion_bundle.threshold else "not_depressed"
 
-        # Real modality contributions: the fusion model's actual learned
-        # coefficients times this session's actual probabilities (not a
-        # fixed static split) — video stays 0 since it's intentionally
-        # excluded from the recommended pipeline.
-        fusion_coef = fusion_bundle.model.coef_[0]  # [text_weight, audio_weight]
-        pulls = {
-            "text": abs(fusion_coef[0] * p_text),
-            "audio": abs(fusion_coef[1] * p_audio),
-        }
+        # Real modality contributions: the fusion model's learned coefficients
+        # times this session's actual probabilities, not a fixed split. A
+        # modality the fusion model does not take reports 0, which the report
+        # renders as "Not used" rather than as a finding.
+        fusion_coef = fusion_bundle.model.coef_[0]
+        pulls = {m: abs(fusion_coef[i] * probabilities[m]) for i, m in enumerate(fusion_inputs)}
         total_pull = sum(pulls.values()) or 1.0
         modality_contributions = {
-            "text": round(pulls["text"] / total_pull, 4),
-            "audio": round(pulls["audio"] / total_pull, 4),
-            "video": 0.0,
+            m: round(pulls.get(m, 0.0) / total_pull, 4) for m in ("text", "audio", "video")
         }
 
         explanation = _explain_linear_pipeline(audio_bundle, audio_raw, modality="audio")
+        if video_bundle is not None:
+            # Best effort: only a linear video pipeline of the standard shape
+            # can be attributed feature by feature. A missing explanation is
+            # better than a failed report.
+            try:
+                explanation += _explain_linear_pipeline(
+                    video_bundle, np.asarray(video_features), modality="video", top_k=4)
+            except Exception as e:
+                logger.warning("No per-feature explanation for the video model: %s", e)
         # Text model (RBF-SVM) intentionally has no per-feature explanation —
         # see _explain_linear_pipeline's docstring.
 

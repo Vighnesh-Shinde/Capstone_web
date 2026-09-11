@@ -23,10 +23,24 @@ const MODALITIES = [
     blurb: "Reads how they said it — response latency, pauses, pitch and loudness variation.",
   },
   {
+    value: "VIDEO",
+    label: "Video",
+    features: 111,
+    // A language scores without it; it only changes a prediction when the
+    // active fusion model takes three inputs.
+    optional: true,
+    blurb:
+      "Reads facial movement — mouth, eye and brow geometry from MediaPipe Face Mesh. " +
+      "Optional: it only affects predictions when the active fusion model takes three inputs.",
+  },
+  {
     value: "FUSION",
     label: "Fusion",
-    features: 2,
-    blurb: "Combines the text and audio probabilities into the final score.",
+    features: "2 or 3",
+    blurb:
+      "Combines the per-stage probabilities into the final score. Two inputs means " +
+      "[text, audio]; three means [text, audio, video], in that order. A three-input " +
+      "model can only be activated once a video model is active for the same language.",
   },
 ];
 
@@ -101,8 +115,18 @@ export default function AdminModels() {
       ? `Switch the ${version.modality} model from "${active.versionLabel}" to "${version.versionLabel}"?\n\n` +
         `All new sessions will be analysed with the new weights immediately. Reports already produced are unchanged.`
       : `Activate "${version.versionLabel}" as the ${version.languageName} ${version.modality} model?`;
+    const fusion = versions.find(
+      (v) => v.modality === "FUSION" && v.language === version.language && v.active
+    );
+    // Activating video is harmless on its own, which is exactly why it can be
+    // confusing: nothing changes until a three-input fusion model is active.
+    const videoNote =
+      version.modality === "VIDEO" && fusion?.featureCount !== 3
+        ? `\n\nThe active fusion model takes two inputs, so video will not affect ` +
+          `predictions until a three-input fusion model is activated.`
+        : "";
 
-    if (!window.confirm(message)) return;
+    if (!window.confirm(message + videoNote)) return;
 
     setBusyId(version.id);
     setError("");
@@ -120,22 +144,31 @@ export default function AdminModels() {
     }
   }
 
-  async function handleRevert(modalityValue, activeLabel) {
-    if (
-      !window.confirm(
-        `Revert ${modalityValue} to the built-in model, replacing "${activeLabel}"?\n\n` +
-          `Use this if an uploaded model is misbehaving and there's no earlier version to fall back to.`
-      )
-    ) {
+  async function handleRevert(modalityValue, languageCode, activeLabel) {
+    const isVideo = modalityValue === "VIDEO";
+    const question = isVideo
+      ? `Remove the video model "${activeLabel}"?\n\n` +
+        `There is no built-in video model, so this simply stops using video. It is ` +
+        `refused while the active fusion model takes video as an input.`
+      : `Revert ${modalityValue} to the built-in model, replacing "${activeLabel}"?\n\n` +
+        `Use this if an uploaded model is misbehaving and there's no earlier version to fall back to.`;
+    if (!window.confirm(question)) {
       return;
     }
 
-    setBusyId(modalityValue);
+    // Same key the card uses, so the right button shows as busy.
+    setBusyId(`${languageCode}:${modalityValue}`);
     setError("");
     setNotice("");
     try {
-      await revertModelToDefault(modalityValue);
-      setNotice(`${modalityValue} is back on the built-in model.`);
+      // The language must be passed: without it every revert hit English,
+      // whichever language's card the button was on.
+      await revertModelToDefault(modalityValue, languageCode);
+      setNotice(
+        isVideo
+          ? `The video model "${activeLabel}" was removed.`
+          : `${modalityValue} is back on the built-in model.`
+      );
       await load();
     } catch (err) {
       setError(err.response?.data?.message || "Revert failed.");
@@ -190,30 +223,49 @@ export default function AdminModels() {
                 (v) => v.modality === m.value && v.language === lang.code && v.active
               );
               const busyKey = `${lang.code}:${m.value}`;
+              // Whether video actually reaches predictions is decided by the
+              // active fusion model's input width, not by a video model existing.
+              const activeFusion = versions.find(
+                (v) => v.modality === "FUSION" && v.language === lang.code && v.active
+              );
+              const fusionUsesVideo = activeFusion?.featureCount === 3;
+              let detail;
+              if (!active) {
+                detail = m.optional
+                  ? "Optional — only used by a three-input fusion model"
+                  : lang.code === "en"
+                    ? "Shipped with the project — no upload yet"
+                    : "No model activated for this language";
+              } else if (m.value === "VIDEO" && !fusionUsesVideo) {
+                detail = "Active, but not used yet — the fusion model takes two inputs";
+              } else if (m.value === "FUSION") {
+                detail =
+                  `${active.featureCount === 3 ? "Uses text, audio and video" : "Uses text and audio"}` +
+                  ` · activated ${formatDateTime(active.activatedAt)}`;
+              } else {
+                detail = `Activated ${formatDateTime(active.activatedAt)}`;
+              }
               return (
                 <div key={busyKey} className="stat-card">
-                  <span className="stat-label">{m.label} · {m.features} features</span>
+                  <span className="stat-label">
+                    {m.label} · {m.features} features
+                    {m.optional && " · optional"}
+                  </span>
                   <span className="stat-value model-active-label">
                     {active
                       ? active.versionLabel
-                      : lang.code === "en"
+                      : lang.code === "en" && !m.optional
                         ? "Built-in default"
                         : "Not installed"}
                   </span>
-                  <span className="muted small">
-                    {active
-                      ? `Activated ${formatDateTime(active.activatedAt)}`
-                      : lang.code === "en"
-                        ? "Shipped with the project — no upload yet"
-                        : "No model activated for this language"}
-                  </span>
+                  <span className="muted small">{detail}</span>
                   {active && (
                     <button
                       className="btn-link danger revert-link"
                       disabled={busyId === busyKey}
                       onClick={() => handleRevert(m.value, lang.code, active.versionLabel)}
                     >
-                      Revert to built-in
+                      {m.optional ? "Remove" : "Revert to built-in"}
                     </button>
                   )}
                 </div>
@@ -221,14 +273,14 @@ export default function AdminModels() {
             })}
           </div>
 
-          {/* A language is only usable when all three stages are present.
-              Saying so here is what stops an admin uploading one file and
-              wondering why sessions still refuse to run. */}
+          {/* A language is only usable when its three required stages are
+              present. Saying so here is what stops an admin uploading one file
+              and wondering why sessions still refuse to run. */}
           {lang.code !== "en" && !lang.scoring && (
             <div className="alert alert-warning">
-              {lang.name} is not yet available for sessions. All three stages — text,
-              audio and fusion — need an activated model before counselors can select
-              it. English models are never substituted in.
+              {lang.name} is not yet available for sessions. Text, audio and fusion all
+              need an activated model before counselors can select it; video is optional.
+              English models are never substituted in.
             </div>
           )}
         </section>
@@ -255,8 +307,9 @@ export default function AdminModels() {
           ))}
         </select>
         <p className="hint">
-          Which language pipeline these weights serve. Uploading all three stages for a
-          new language is what makes that language selectable when creating a session.
+          Which language pipeline these weights serve. Uploading text, audio and fusion
+          for a new language is what makes that language selectable when creating a
+          session. Video is optional.
         </p>
 
         <label className="field-label" htmlFor="modality">Stage</label>
@@ -284,7 +337,7 @@ export default function AdminModels() {
         />
         <p className="hint">
           Must be a joblib dict containing <code>model</code> and <code>threshold</code>,
-          with an input width of exactly {selected.features}. Anything else is rejected —
+          with an input width of {selected.features}. Anything else is rejected —
           a mis-shaped model would still return a number, just a meaningless one.
         </p>
 

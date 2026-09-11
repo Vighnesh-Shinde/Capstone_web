@@ -65,5 +65,13 @@ training/venv/
 # validates them, not by being committed.
 training/*.joblib
 training/*.report.json
+
+# Models uploaded through Admin -> Models land beside the built-in ones, named
+# <language>__<modality>__<label>.joblib, with active_manifest.json recording
+# which are serving. Both are runtime state of one installation — and a
+# .joblib is executable pickle — so neither belongs in the repository. The
+# built-in models (no double underscore) stay tracked.
+ml-service/models/*__*.joblib
+ml-service/models/active_manifest.json
 __pycache__/
 *.pyc

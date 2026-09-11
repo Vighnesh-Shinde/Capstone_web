@@ -3,19 +3,15 @@ package com.project.depression.entity;
 /**
  * The pipeline stages that have swappable weights.
  *
- * TEXT, AUDIO and FUSION are the production path: a prediction is text and
- * audio probabilities combined by fusion.
+ * TEXT, AUDIO and FUSION are required for a language to be scored. VIDEO is
+ * optional: it only enters a prediction when the active FUSION model takes
+ * three inputs, [p_text, p_audio, p_video]. With a two-input fusion model an
+ * active VIDEO version is stored and versioned but changes no prediction.
  *
- * VIDEO is versionable but NOT in that path. The research project measured
- * that adding video made the fused result worse, so the pipeline reports it as
- * 0% and the report shows "Not used". It is uploadable anyway so that an
- * operator retraining on this platform's own data can store and version a
- * video model while answering whether that finding still holds here — a
- * different population and a different feature set from the original result.
- *
- * Activating a VIDEO version therefore changes no prediction today. Making it
- * count would require retraining FUSION to take three inputs, which is a
- * deliberate decision to be made on evidence, not a side effect of an upload.
+ * The fusion model's own input width selects the path, not a flag, so the two
+ * can never disagree. ModelVersionService refuses to activate a three-input
+ * fusion model without an active VIDEO model, and refuses to remove VIDEO while
+ * one depends on it.
  */
 public enum ModelModality {
     TEXT,
@@ -26,10 +22,5 @@ public enum ModelModality {
     /** Key used in the ML service's active_manifest.json. */
     public String manifestKey() {
         return name().toLowerCase();
-    }
-
-    /** Whether activating this stage affects predictions today. */
-    public boolean inPredictionPath() {
-        return this != VIDEO;
     }
 }

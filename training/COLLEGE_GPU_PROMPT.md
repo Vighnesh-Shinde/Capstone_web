@@ -118,14 +118,40 @@ Each model must be a `joblib` dict with exactly these keys:
 
 The platform validates uploads against `EXPECTED_FEATURE_COUNTS` in
 `ml-service/app/real/model_loader.py` and rejects anything whose input width is
-wrong. Current values: **text 3096, audio 85, fusion 2, video 111.**
+wrong. Current values: **text 3096, audio 85, video 111, and fusion 2 or 3.**
 
-The fusion model takes exactly two inputs, in this order: `[p_text, p_audio]`.
-See `ml-service/app/real/real_inference.py`. **Video is deliberately not in the
-prediction path** — the previous project found it made the fused result worse.
-If your video model is genuinely good and you want it fused, say so explicitly:
-that is a three-input fusion model and a coordinated change to the inference
-code, not a drop-in replacement.
+The fusion model's input width decides which modalities it combines:
+
+- **2 inputs** → `[p_text, p_audio]`. Video is not used.
+- **3 inputs** → `[p_text, p_audio, p_video]`, in exactly that order.
+
+Deliver a two-input fusion model **and**, if video earns its place, a
+three-input one, and report both so I can choose on evidence. The previous
+project found video made the fused result worse; check whether that holds here.
+
+Column order is checked by nothing. A fusion model trained on a different order
+loads, predicts, and is silently wrong. A three-input fusion can only be
+activated once a video model is active for the same language.
+
+### Video — read this before training a video model
+
+Production extracts video features with **MediaPipe Face Mesh** —
+`ml-service/app/real/video_features.py`, 111 features. As far as I know,
+DAIC-WOZ does not distribute the interview video itself, only features already
+extracted with **OpenFace/CLNF**, and those are not interchangeable with
+MediaPipe's landmarks: even where column names look alike, the numbers mean
+different things. A video model trained on the corpus's CLNF files would pass
+the width check only by coincidence and would be wrong on every live session.
+
+So, before training a video model:
+
+1. Check whether your download actually contains raw video. If it does, run
+   `video_features.py` on it so training matches production exactly.
+2. If it contains only CLNF features, you may instead deliver an OpenFace-based
+   `video_features.py` for production together with the model, as a matched
+   pair, plus its new feature count.
+3. If neither is workable, say so plainly. Do **not** ship a CLNF-trained model
+   against MediaPipe extraction.
 
 ## Phase 6 — Report
 

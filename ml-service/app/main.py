@@ -132,6 +132,7 @@ def process(request: ProcessRequest) -> ProcessResponse:
 
     from app.languages import LanguageNotScorable
     from app.real.adequacy import SessionTooShort
+    from app.real.real_inference import VideoUnavailable
     from app.real.media_pipeline import SpeakerResolutionError
     from app.real.real_inference import run_real_inference
     try:
@@ -141,6 +142,14 @@ def process(request: ProcessRequest) -> ProcessResponse:
             request.language,
             counselor_embedding=request.counselor_embedding,
             companion_embeddings=request.companion_embeddings,
+        )
+    except VideoUnavailable as e:
+        # The active fusion model needs a video probability and this recording
+        # could not provide one. A refusal, not a crash: the counsellor can fix
+        # it (face in frame) or the admin can switch fusion back to two inputs.
+        raise HTTPException(
+            status_code=422,
+            detail={"code": "VIDEO_UNAVAILABLE", "message": str(e)},
         )
     except SessionTooShort as e:
         # 422 like the other refusals: the service is healthy and the request

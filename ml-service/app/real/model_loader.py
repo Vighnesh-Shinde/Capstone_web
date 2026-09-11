@@ -1,5 +1,6 @@
 """
-Loads the three trained model bundles (text, audio, fusion).
+Loads the trained model bundles: text, audio and fusion (required) and
+video (optional).
 
 Which file backs each modality is resolved from models/active_manifest.json,
 written by the backend when an admin activates a model version. That indirection
@@ -15,14 +16,17 @@ The manifest is keyed by LANGUAGE first, then modality:
 
 so a Marathi model set is installed by exactly the same upload-and-activate
 flow as replacing the English one, and a language becomes scorable the moment
-all three of its files are present. Earlier deployments wrote a flat
+its three required files — text, audio, fusion — are present. Earlier deployments wrote a flat
 {"text": ...} manifest with no language level; that shape is still read and
 treated as English, so an existing install keeps working across the upgrade.
 
-model3 (video) and model5 (MentalBERT alternative) are deliberately not loaded:
-the research project's own testing found including video makes the fused result
-WORSE, and model5 is an optional alternative, not part of the recommended path.
-See friend_shared_work/README_FIRST.txt section 2.
+Video is optional and is loaded only when a video model has been activated.
+It enters a prediction only if the active fusion model takes three inputs,
+[p_text, p_audio, p_video] — the fusion model's input width selects the path;
+see FUSION_INPUT_WIDTHS. No video model ships with the project, because the
+research project found that adding video made the fused result worse; that is
+now something to re-test on evidence rather than a fixed rule. model5 (the
+MentalBERT alternative) is still not loaded.
 
     SECURITY — joblib.load() unpickles, and unpickling executes arbitrary code.
     A malicious .joblib is remote code execution against this service. Only ever
@@ -65,12 +69,29 @@ EXPECTED_FEATURE_COUNTS = {
     "text": 3096,
     "audio": 85,
     "fusion": 2,
-    # Validated so a video model can be uploaded and versioned, but
-    # deliberately NOT in DEFAULT_FILENAMES: video is not in the prediction
-    # path, nothing loads it at startup, and reload() must not fail because a
-    # stage nobody has uploaded to has no file. See ModelModality.
+    # The width of app/real/video_features.py's output (MediaPipe face
+    # geometry). Optional, and deliberately NOT in DEFAULT_FILENAMES: no video
+    # model ships with the project, and a language must stay scorable without
+    # one. It only enters the prediction when the fusion model takes three
+    # inputs — see FUSION_INPUT_WIDTHS.
     "video": 111,
 }
+
+# The fusion model's own input width decides which modalities it combines, and
+# in what order. Nothing else selects the path: uploading a video model changes
+# no prediction until a three-input fusion model is activated alongside it.
+#
+# The ORDER is part of the contract. A fusion model trained on
+# [p_text, p_audio, p_video] and fed [p_audio, p_text, p_video] still returns a
+# confident probability — just a wrong one — and nothing downstream can detect
+# the swap. Training code must emit columns in exactly this order.
+FUSION_INPUT_WIDTHS = {
+    2: ("text", "audio"),
+    3: ("text", "audio", "video"),
+}
+
+# Stages that may be installed but are not required for a language to score.
+OPTIONAL_MODALITIES = ("video",)
 
 
 @dataclass
@@ -150,6 +171,22 @@ def feature_count(model: Any) -> int | None:
     """
     n = getattr(model, "n_features_in_", None)
     return int(n) if n is not None else None
+
+
+def fusion_input_modalities(bundle: "ModelBundle") -> tuple[str, ...]:
+    """Which probabilities a fusion model expects, in the order it expects them."""
+    width = feature_count(bundle.model)
+    if width not in FUSION_INPUT_WIDTHS:
+        raise ValueError(
+            f"The fusion model takes {width} inputs; this platform supports "
+            f"{' or '.join(str(w) for w in sorted(FUSION_INPUT_WIDTHS))}."
+        )
+    return FUSION_INPUT_WIDTHS[width]
+
+
+def _video_installed(language: str) -> bool:
+    filename = installed_files(language).get("video")
+    return filename is not None and (MODELS_DIR / filename).exists()
 
 
 def inspect_bundle(path: Path) -> dict:
@@ -240,6 +277,10 @@ class Models:
         return cls._get(language, "fusion")
 
     @classmethod
+    def video(cls, language: str = DEFAULT_LANGUAGE) -> ModelBundle:
+        return cls._get(language, "video")
+
+    @classmethod
     def preload_all(cls) -> None:
         """
         Call at startup so the first real request isn't slow.
@@ -249,7 +290,8 @@ class Models:
         not stop the service from serving English.
         """
         for language in sorted(scoring_languages()):
-            for modality in MODALITIES:
+            modalities = MODALITIES + (("video",) if _video_installed(language) else ())
+            for modality in modalities:
                 try:
                     cls._get(language, modality)
                 except Exception:
@@ -266,11 +308,24 @@ class Models:
         inference down.
         """
         with cls._lock:
-            fresh = {
-                (language, modality): _load(language, modality)
-                for language in sorted(scoring_languages())
-                for modality in MODALITIES
-            }
+            fresh: dict[tuple[str, str], ModelBundle] = {}
+            for language in sorted(scoring_languages()):
+                for modality in MODALITIES:
+                    fresh[(language, modality)] = _load(language, modality)
+                if _video_installed(language):
+                    fresh[(language, "video")] = _load(language, "video")
+
+                # A three-input fusion with no video model would fail on every
+                # session. Refusing here keeps the previously working models in
+                # place — the cache is only swapped once everything checks out —
+                # instead of letting a half-configured pipeline go live.
+                if ("video" in fusion_input_modalities(fresh[(language, "fusion")])
+                        and (language, "video") not in fresh):
+                    raise ValueError(
+                        f"The active {language} fusion model combines text, audio AND "
+                        f"video, but no {language} video model is activated. Activate a "
+                        f"video model first, or activate a two-input fusion model."
+                    )
             cls._cache = fresh
 
         loaded: dict[str, dict[str, str]] = {}

@@ -211,6 +211,20 @@ public class ModelVersionService {
             return toResponse(target);
         }
 
+        // A three-input fusion model needs a video probability on every
+        // session. Refused here, before anything changes: otherwise the row
+        // flips to active, the ML service refuses to reload, and the database
+        // claims a model is live that is not actually serving.
+        if (target.getModality() == ModelModality.FUSION
+                && Integer.valueOf(3).equals(target.getFeatureCount())
+                && modelVersionRepository.findByModalityAndLanguageAndActiveIsTrue(
+                        ModelModality.VIDEO, target.getLanguage()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This fusion model combines text, audio and video, but no "
+                            + target.getLanguage() + " video model is active. "
+                            + "Activate a video model first, then this fusion model.");
+        }
+
         // Deactivate first and flush: the partial unique index allows only one
         // active row per (modality, language), so both cannot be active even
         // momentarily.
@@ -262,13 +276,31 @@ public class ModelVersionService {
         ModelVersion active = modelVersionRepository
                 .findByModalityAndLanguageAndActiveIsTrue(modality, lang)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        lang + " " + modality + " is already using the built-in model."));
+                        modality == ModelModality.VIDEO
+                                ? "No " + lang + " video model is active."
+                                : lang + " " + modality + " is already using the built-in model."));
+
+        // Video has no built-in model and is optional, so "reverting" it just
+        // removes it. That is safe unless the active fusion model takes video
+        // as an input — then every session would fail.
+        if (modality == ModelModality.VIDEO) {
+            modelVersionRepository.findByModalityAndLanguageAndActiveIsTrue(ModelModality.FUSION, lang)
+                    .filter(f -> Integer.valueOf(3).equals(f.getFeatureCount()))
+                    .ifPresent(f -> {
+                        throw new ResponseStatusException(HttpStatus.CONFLICT,
+                                "The active " + lang + " fusion model (" + f.getVersionLabel()
+                                        + ") uses video. Activate a two-input fusion model before "
+                                        + "removing the video model.");
+                    });
+        }
 
         // Only English ships with built-in weights. Reverting any other
         // language does not fall back to something older — it removes that
         // language's only model and stops it being scorable at all, so say so
         // rather than letting an admin discover it from a failed session.
-        if (!LanguageCatalogService.DEFAULT_LANGUAGE.equals(lang)) {
+        // Skipped for video: it is optional, so removing a language's only video
+        // model never makes that language unscorable.
+        if (modality != ModelModality.VIDEO && !LanguageCatalogService.DEFAULT_LANGUAGE.equals(lang)) {
             long remaining = modelVersionRepository.findByLanguageOrderByUploadedAtDesc(lang).stream()
                     .filter(v -> v.getModality() == modality && !v.getId().equals(active.getId()))
                     .count();
@@ -296,7 +328,9 @@ public class ModelVersionService {
 
         auditLogService.log(admin, "MODEL_REVERTED_TO_DEFAULT", "MODEL_VERSION", active.getId(),
                 lang + " " + modality + " reverted from " + active.getVersionLabel()
-                        + " to the built-in model");
+                        + (modality == ModelModality.VIDEO
+                                ? " (removed; there is no built-in video model)"
+                                : " to the built-in model"));
         log.info("Reverted {} {} to the built-in model (was '{}')",
                 lang, modality, active.getVersionLabel());
     }

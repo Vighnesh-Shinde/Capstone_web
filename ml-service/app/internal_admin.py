@@ -83,7 +83,7 @@ def validate_model(
     """
     _require_token(x_ml_admin_token)
 
-    from app.real.model_loader import EXPECTED_FEATURE_COUNTS, inspect_bundle
+    from app.real.model_loader import EXPECTED_FEATURE_COUNTS, FUSION_INPUT_WIDTHS, inspect_bundle
 
     modality = request.modality.lower()
     expected = EXPECTED_FEATURE_COUNTS.get(modality)
@@ -117,6 +117,18 @@ def validate_model(
             error="Could not determine the model's input width (no n_features_in_). "
                   "It may not be a fitted scikit-learn estimator.",
         )
+
+    # Fusion is the one stage with two legitimate widths: [text, audio], or
+    # [text, audio, video]. Anything else cannot be wired to the pipeline.
+    if modality == "fusion":
+        if actual in FUSION_INPUT_WIDTHS:
+            expected = actual
+        else:
+            return ValidateModelResponse(
+                ok=False, expected_feature_count=expected, **_carry(info),
+                error=f"A fusion model must take 2 inputs [p_text, p_audio] or 3 inputs "
+                      f"[p_text, p_audio, p_video], in that order. This one takes {actual}.",
+            )
 
     if actual != expected:
         return ValidateModelResponse(

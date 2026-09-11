@@ -25,10 +25,10 @@ class ExplanationItem(BaseModel):
     feature_name: str
     contribution_score: float
     description: str
-    # Which modality pipeline this feature came from. Video is deliberately
-    # excluded here (see app/modalities/video.py) — it only contributes at
-    # the coarse modality_contributions level, not as named sub-features.
-    modality: Literal["audio", "text"]
+    # Which modality pipeline this feature came from. "video" appears only when
+    # the active fusion model uses video and the video model is linear enough to
+    # attribute a prediction to individual features.
+    modality: Literal["audio", "text", "video"]
 
 
 class ProcessResponse(BaseModel):
