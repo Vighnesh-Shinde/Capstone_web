@@ -14,7 +14,9 @@
  *      enrolled and a few processed sessions — the report and participant
  *      screens are empty otherwise.
  *   3. npm install playwright-core
- *   4. node screenshots/capture.js
+ *   4. Set CAPTURE_COUNSELOR_ID / CAPTURE_COUNSELOR_PASSWORD and
+ *      CAPTURE_ADMIN_ID / CAPTURE_ADMIN_PASSWORD in your shell.
+ *   5. node screenshots/capture.js
  *
  * The ML service should be in MOCK mode (USE_REAL_MODELS=false). The real
  * pipeline needs genuine video and takes minutes per session, which makes a
@@ -32,8 +34,19 @@ const BASE = "http://localhost:5173";
 const OUT = process.argv[2] || __dirname;
 const CHROME = "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe";
 
-const COUNSELOR = { id: "meera.joshi@demo.invalid", pw: "DemoPass1234" };
-const ADMIN = { id: "Vighnesh-59", pw: "Vvs@2004" };
+// Logins come from the environment, never from this file: it is in a public
+// repository, and a password committed here is readable by anyone.
+function account(prefix) {
+  const id = process.env[`${prefix}_ID`];
+  const pw = process.env[`${prefix}_PASSWORD`];
+  if (!id || !pw) {
+    console.error(`Set ${prefix}_ID and ${prefix}_PASSWORD before running this script.`);
+    process.exit(1);
+  }
+  return { id, pw };
+}
+const COUNSELOR = account("CAPTURE_COUNSELOR");
+const ADMIN = account("CAPTURE_ADMIN");
 
 /** Ids captured during the run so detail pages can be reached by URL. */
 const ids = {};
