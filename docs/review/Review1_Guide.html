@@ -1,0 +1,522 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Review 1 Guide — Multimodal Depression Screening Platform</title>
+<style>
+  @page { size: A4; margin: 12mm 13mm 13mm 13mm; }
+  :root { --violet: #5b21b6; --violet-soft: #ede9fe; --ink: #1f2937; --muted: #6b7280; --line: #d1d5db;
+          --text: #6d28d9; --audio: #0e7490; --video: #b45309; --fusion: #15803d; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Calibri, Arial, sans-serif; color: var(--ink); font-size: 10pt; line-height: 1.42; margin: 0; }
+  h1 { color: var(--violet); font-size: 21pt; margin: 0 0 6px; }
+  h2 { color: var(--violet); font-size: 15pt; border-bottom: 2px solid var(--violet); padding-bottom: 3px; margin: 0 0 10px; }
+  h3 { font-size: 11.5pt; margin: 14px 0 5px; color: #3b0764; }
+  p { margin: 5px 0 8px; }
+  .page { page-break-before: always; }
+  .muted { color: var(--muted); }
+  .small { font-size: 8.8pt; }
+  table { border-collapse: collapse; width: 100%; margin: 6px 0 10px; font-size: 9.1pt; page-break-inside: avoid; }
+  /* Long tables may split between pages — but never inside a row. Keeping a
+     whole page-length table together pushed it onto a new page and left the
+     previous one nearly empty. */
+  table.long { page-break-inside: auto; }
+  tr { page-break-inside: avoid; }
+  th, td { border: 1px solid var(--line); padding: 4px 6px; vertical-align: top; text-align: left; }
+  th { background: var(--violet-soft); color: #3b0764; }
+  td.num, th.num { text-align: right; white-space: nowrap; }
+  tr.best td { background: #f0fdf4; font-weight: 600; }
+  .box { border: 1.5px solid var(--violet); border-radius: 8px; padding: 9px 12px; margin: 8px 0 12px; background: #faf5ff; page-break-inside: avoid; }
+  .warn { border-color: #b45309; background: #fffbeb; }
+  .ok { border-color: #15803d; background: #f0fdf4; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 10px 0; }
+  .kpi { border: 1px solid var(--line); border-radius: 8px; padding: 8px; text-align: center; }
+  .kpi b { display: block; font-size: 17pt; color: var(--violet); }
+  .kpi span { font-size: 8.5pt; color: var(--muted); }
+  figure { margin: 8px 0 12px; text-align: center; page-break-inside: avoid; }
+  figure img { max-width: 100%; max-height: 70mm; }
+  .two figure img { max-height: none; }
+  figcaption { font-size: 8.8pt; color: var(--muted); margin-top: 2px; }
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: center; }
+  .cover .dept { font-size: 12pt; color: var(--muted); letter-spacing: .5px; }
+  .cover h1 { font-size: 26pt; line-height: 1.2; margin: 12px 0; }
+  .cover .sub { font-size: 13pt; }
+  .toc li { margin: 3px 0; }
+  .qa { page-break-inside: avoid; margin: 0 0 9px; padding: 6px 10px 4px; border-left: 3px solid var(--violet); background: #fcfbff; }
+  .qa .q { font-weight: 700; color: #3b0764; margin: 0 0 3px; }
+  .qa .a { margin: 0 0 3px; }
+  .tag { display: inline-block; font-size: 7.8pt; font-weight: 700; padding: 1px 6px; border-radius: 10px; background: var(--violet-soft); color: var(--violet); margin-right: 5px; vertical-align: 1px; }
+  .flow { display: flex; align-items: stretch; gap: 6px; margin: 10px 0; }
+  .flow .n { flex: 1; border: 1.5px solid var(--violet); border-radius: 8px; padding: 6px 7px; font-size: 8.5pt; background: #faf5ff; }
+  .flow .n b { display: block; color: var(--violet); font-size: 9.3pt; margin-bottom: 2px; }
+  .flow .arrow { align-self: center; color: var(--violet); font-weight: 700; }
+  .arch { display: grid; grid-template-columns: 1fr 1.2fr 1.3fr; gap: 10px; margin: 8px 0; }
+  .arch .col { border: 1.5px solid var(--violet); border-radius: 8px; padding: 8px; font-size: 8.8pt; }
+  .arch .col h4 { margin: 0 0 4px; color: var(--violet); font-size: 10pt; }
+  .arch ul { margin: 0; padding-left: 15px; }
+  ul, ol { margin: 4px 0 8px; padding-left: 20px; }
+  li { margin: 2px 0; }
+  .done { color: #15803d; font-weight: 700; }
+  .part { color: #b45309; font-weight: 700; }
+  .todo { color: #b91c1c; font-weight: 700; }
+  code { font-family: Consolas, monospace; font-size: 8.8pt; background: #f3f4f6; padding: 0 3px; border-radius: 3px; }
+  .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+</style>
+</head>
+<body>
+
+<!-- ============================== COVER ============================== -->
+<div class="cover">
+  <div class="dept">DEPARTMENT OF COMPUTER SCIENCE &amp; ENGINEERING</div>
+  <div class="sub">Project Phase II (CS421) — In-Semester Evaluation ISE-I / Review 1</div>
+  <h1>AI-Assisted Multimodal Depression Screening Platform</h1>
+  <div class="sub">Text · Audio · Video · Fusion — trained on the official DAIC-WOZ corpus</div>
+  <p class="muted" style="margin-top:18px">Review preparation guide: model results, algorithms, architecture, implementation status,
+  demo plan and a question bank mapped to every row of the evaluation sheet.</p>
+  <div class="box" style="margin-top:20px">
+    <b>Contents</b>
+    <ol class="toc">
+      <li>Project in one page</li>
+      <li>Accuracy of each model (tables + 7 charts)</li>
+      <li>Algorithms and techniques used</li>
+      <li>System architecture, database and session flow</li>
+      <li>Implementation status (80% requirement) and plan</li>
+      <li>Evaluation sheet → what to show for each mark</li>
+      <li>Demo script for the review</li>
+      <li>Question bank with answers (≈80 questions)</li>
+      <li>Before-review checklist and glossary</li>
+    </ol>
+  </div>
+  <p class="small muted">All model numbers come from the project's own training run on the official DAIC-WOZ release
+  (<code>My_Work/results</code>), and the text and audio results were re-verified on this machine (test AUC 0.7532 and 0.6017 reproduced exactly).
+  Prepared 11 September 2026.</p>
+</div>
+
+<!-- ============================== 1 ============================== -->
+<div class="page">
+<h2>1. The project in one page</h2>
+<p><b>Problem.</b> Depression is common and under-diagnosed; counsellors see many people and a first screening conversation
+is subjective. Research (AVEC 2016/2017 challenges on the DAIC-WOZ corpus) shows that <i>what</i> people say, <i>how</i> they
+say it and <i>how their face moves</i> carry measurable signals associated with depression.</p>
+<p><b>Solution.</b> A web platform where an approved counsellor uploads (or records) a counselling conversation. The system
+separates the participant's voice from the counsellor's, transcribes it, extracts text, audio and facial features, runs
+three trained models and a fusion model, and produces a report: <b>Depressed / Not depressed</b>, a confidence score,
+how much each modality contributed, and an explanation in plain language that a participant can understand.
+It is a <b>screening aid, not a diagnosis</b> — the counsellor's own judgement is recorded separately on every report.</p>
+<p><b>Users.</b> <b>Admin</b> (approves counsellors, manages models, voice passage, research dataset, privacy/erasure, audit log) and
+<b>Counsellor</b> (participants, sessions, voice enrolment, reports, judgement, settings).</p>
+
+<div class="kpis">
+  <div class="kpi"><b>70.2%</b><span>Fusion accuracy on 47 unseen people</span></div>
+  <div class="kpi"><b>0.768</b><span>Fusion ROC-AUC (test)</span></div>
+  <div class="kpi"><b>78.6%</b><span>Depressed people correctly found (11 of 14)</span></div>
+  <div class="kpi"><b>4</b><span>Models: text, audio, video, fusion</span></div>
+  <div class="kpi"><b>29</b><span>Frontend pages (React)</span></div>
+  <div class="kpi"><b>19</b><span>REST controllers (Spring Boot)</span></div>
+  <div class="kpi"><b>14</b><span>Database migrations (Flyway)</span></div>
+  <div class="kpi"><b>32</b><span>Git commits</span></div>
+</div>
+
+<h3>60-second pitch (say this first)</h3>
+<div class="box">
+"Our project is a multimodal depression screening platform for counsellors. A counsellor uploads a session recording;
+our ML service identifies the participant by voiceprint, transcribes the speech with Whisper, and extracts three kinds of
+features — word habits and sentence meaning, voice prosody, and facial action units with OpenFace. Three logistic-regression
+models trained on the official DAIC-WOZ dataset score each modality, and a stacking model fuses them. On the untouched test
+set the fused model is 70% accurate with AUC 0.77 and finds 11 of 14 depressed participants. Every report explains its
+result feature by feature in plain language. The platform is built with React, Spring Boot, PostgreSQL and FastAPI,
+with admin approval, JWT security, model version management and a consent-based research dataset."
+</div>
+
+<h3>What makes it different from a typical student ML project</h3>
+<ul>
+  <li><b>Honest evaluation:</b> the official train/dev/test split, the test set touched once, confidence intervals, and nested cross-validation.</li>
+  <li><b>No interviewer leakage:</b> only the participant's own speech is used (a 2024 study showed interviewer prompts alone leak ≈0.83 AUC on DAIC-WOZ).</li>
+  <li><b>Explainable output:</b> linear models, so every prediction is broken down into exact feature contributions, then translated into plain words.</li>
+  <li><b>End-to-end and deployable:</b> real speaker diarization, voiceprint identification, model upload/activate/revert without code changes, safety refusals instead of silent guesses.</li>
+</ul>
+</div>
+
+<!-- ============================== 2 ============================== -->
+<div class="page">
+<h2>2. Accuracy of each model</h2>
+<p>Dataset: official DAIC-WOZ, 188 participants — train 107, dev 34, test 47 (participant 440 excluded: corrupt in the official release).
+Label: PHQ-8 score ≥ 10 → Depressed. Test split: 47 people, 14 depressed (29.8%).
+The test split was scored <b>once</b>, after every choice was made on train/dev.</p>
+
+<h3>Table 1 — Held-out test results (n = 47)</h3>
+<table>
+  <tr><th>Model</th><th>Algorithm</th><th class="num">Inputs</th><th class="num">Accuracy</th><th class="num">Precision</th>
+      <th class="num">Recall<br>(Sensitivity)</th><th class="num">Specificity</th><th class="num">F1</th><th class="num">ROC-AUC [95% CI]</th><th class="num">Threshold</th></tr>
+  <tr><td><b style="color:var(--text)">Text</b></td><td>Logistic Regression, SelectKBest k=50, C=0.01</td><td class="num">3096</td><td class="num">70.2%</td><td class="num">50.0%</td><td class="num">64.3%</td><td class="num">72.7%</td><td class="num">0.563</td><td class="num">0.753 [0.59–0.89]</td><td class="num">0.301</td></tr>
+  <tr><td><b style="color:var(--audio)">Audio</b></td><td>Logistic Regression, SelectKBest k=25, C=1</td><td class="num">64</td><td class="num">57.4%</td><td class="num">36.4%</td><td class="num">57.1%</td><td class="num">57.6%</td><td class="num">0.444</td><td class="num">0.602 [0.40–0.79]</td><td class="num">0.304</td></tr>
+  <tr><td><b style="color:var(--video)">Video</b></td><td>Logistic Regression, SelectKBest k=25, C=1</td><td class="num">224</td><td class="num">57.4%</td><td class="num">37.5%</td><td class="num">64.3%</td><td class="num">54.5%</td><td class="num">0.474</td><td class="num">0.584 [0.41–0.75]</td><td class="num">0.286</td></tr>
+  <tr class="best"><td><b style="color:var(--fusion)">Fusion</b></td><td>Logistic Regression stacker on [p_text, p_audio, p_video]</td><td class="num">3</td><td class="num">70.2%</td><td class="num">50.0%</td><td class="num">78.6%</td><td class="num">66.7%</td><td class="num">0.611</td><td class="num">0.768 [0.60–0.91]</td><td class="num">0.294</td></tr>
+</table>
+<p class="small muted">Confusion counts (TN / FP / FN / TP): text 24/9/5/9 · audio 19/14/6/8 · video 18/15/5/9 · fusion 22/11/3/11.
+Balanced accuracy: text 68.5%, audio 57.4%, video 59.4%, fusion 72.6%. Thresholds chosen by Youden's J on out-of-fold predictions of train+dev, never on test.</p>
+
+<figure><img src="fig1_test_metrics.png"><figcaption>Figure 1 — Accuracy, F1 and AUC of each model on the held-out test split.</figcaption></figure>
+
+<div class="box">
+<b>How to state the result in the review:</b> "Our deployed fusion model is correct for about 7 out of 10 unseen people
+(70.2% accuracy, AUC 0.77). More importantly for screening, it finds 11 of the 14 depressed people (78.6% recall).
+The text model is the strongest single modality; audio and video add a little. The more stable cross-validated AUC is
+about 0.69–0.73, which is in the normal range for honest DAIC-WOZ results."
+</div>
+</div>
+
+<div class="page">
+<h3>Table 2 — Nested cross-validation (train + dev, 142 people, 5 folds × 4 repeats)</h3>
+<p>Cross-validation uses 142 people instead of 47, so it is the more reliable estimate of future performance.</p>
+<table>
+  <tr><th>Configuration</th><th class="num">Pooled AUC</th><th class="num">95% CI</th><th class="num">Accuracy</th><th class="num">F1</th><th class="num">Sensitivity</th><th class="num">Specificity</th></tr>
+  <tr><td>Text only</td><td class="num">0.705</td><td class="num">0.605–0.800</td><td class="num">66.2%</td><td class="num">0.571</td><td class="num">76.2%</td><td class="num">62.0%</td></tr>
+  <tr><td>Audio, legacy 85 features (includes interviewer timing)</td><td class="num">0.671</td><td class="num">0.570–0.767</td><td class="num">66.2%</td><td class="num">0.520</td><td class="num">61.9%</td><td class="num">68.0%</td></tr>
+  <tr><td>Audio, clean 64 features (deployed)</td><td class="num">0.609</td><td class="num">0.500–0.712</td><td class="num">67.6%</td><td class="num">0.452</td><td class="num">45.2%</td><td class="num">77.0%</td></tr>
+  <tr><td>Text + audio, legacy 85</td><td class="num">0.733</td><td class="num">0.637–0.820</td><td class="num">73.9%</td><td class="num">0.543</td><td class="num">52.4%</td><td class="num">83.0%</td></tr>
+  <tr><td>Text + audio, clean 64</td><td class="num">0.694</td><td class="num">0.593–0.789</td><td class="num">76.1%</td><td class="num">0.514</td><td class="num">42.9%</td><td class="num">90.0%</td></tr>
+  <tr><td>Video, OpenFace action units + gaze</td><td class="num">0.417</td><td class="num">—</td><td colspan="4" class="muted">below chance in cross-validation; adding it to text+audio cost 0.084 AUC (95% CI −0.138 to −0.031)</td></tr>
+</table>
+<figure><img src="fig5_cv_auc.png"><figcaption>Figure 2 — Cross-validated AUC with 95% confidence intervals.</figcaption></figure>
+<figure><img src="fig2_auc_ci.png"><figcaption>Figure 3 — Test AUC with bootstrap confidence intervals. With 47 people one misclassified person moves accuracy by 2.1 points, so the intervals are wide.</figcaption></figure>
+</div>
+
+<div class="page">
+<figure><img src="fig3_confusion.png"><figcaption>Figure 4 — Confusion matrices. The fusion model misses only 3 depressed people but raises 11 false alarms — the right trade-off for screening, where a counsellor reviews every flag.</figcaption></figure>
+<figure><img src="fig4_sens_spec.png"><figcaption>Figure 5 — Sensitivity (depressed people found) vs specificity (non-depressed people cleared).</figcaption></figure>
+<div class="two">
+  <figure><img src="fig6_fusion_weights.png"><figcaption>Figure 6 — The fusion model trusts text most, audio second, and gives video a negative weight — it learned by itself that video does not help.</figcaption></figure>
+  <figure><img src="fig7_fusion_strategies.png"><figcaption>Figure 7 — Fusion strategies compared on the test split.</figcaption></figure>
+</div>
+<h3>Reading the results honestly</h3>
+<ul>
+  <li><b>Text carries most of the signal</b> (test AUC 0.753). Word habits and sentence meaning are the strongest markers in this dataset.</li>
+  <li><b>Audio is weaker after removing interviewer timing</b> (0.671 → 0.609 in CV). Much of the old audio model's skill was reading the interview protocol (the virtual interviewer's pauses), not the patient; the deployed model uses only the participant's own voice and timing.</li>
+  <li><b>Video does not help</b> on this dataset; the fusion weight is −0.51. It is kept because the project scope is multimodal and the platform can switch to a two-input fusion with no code change.</li>
+  <li><b>Why not 90%?</b> Published DAIC-WOZ results of 0.85–0.95 mostly used interviewer turns or tuned on the test set. With only 188 people and honest evaluation, 0.70–0.77 AUC is a defensible result.</li>
+</ul>
+</div>
+
+<!-- ============================== 3 ============================== -->
+<div class="page">
+<h2>3. Algorithms and techniques</h2>
+<h3>3.1 The prediction pipeline</h3>
+<div class="flow">
+  <div class="n"><b>1. Media</b>ffmpeg extracts 16 kHz mono audio</div><div class="arrow">→</div>
+  <div class="n"><b>2. Speech-to-text</b>faster-whisper (small, int8) with word timestamps</div><div class="arrow">→</div>
+  <div class="n"><b>3. Diarization</b>pyannote speaker-diarization-community-1</div><div class="arrow">→</div>
+  <div class="n"><b>4. Who is who</b>voiceprints (256-d), cosine similarity</div><div class="arrow">→</div>
+  <div class="n"><b>5. Features</b>text 3096 · audio 64 · video 224</div><div class="arrow">→</div>
+  <div class="n"><b>6. Models</b>3 × logistic regression + stacker</div><div class="arrow">→</div>
+  <div class="n"><b>7. Report</b>label, confidence, explanation</div>
+</div>
+
+<table class="long">
+  <tr><th style="width:20%">Stage</th><th style="width:45%">Technique</th><th>Why this choice</th></tr>
+  <tr><td>Audio extraction</td><td>ffmpeg → 16 kHz mono WAV; any video/audio format accepted (upload up to 520 MB)</td><td>All speech models expect 16 kHz mono; one normalised format.</td></tr>
+  <tr><td>Speech recognition</td><td><b>faster-whisper</b> (OpenAI Whisper, CTranslate2), model "small", int8 on CPU, word-level timestamps</td><td>Robust to accents and noise; timestamps are needed to align words with speakers.</td></tr>
+  <tr><td>Speaker diarization</td><td><b>pyannote.audio</b> speaker-diarization-community-1</td><td>Splits "who spoke when"; the models must only see the participant.</td></tr>
+  <tr><td>Speaker identification</td><td>Counsellor enrols by reading a fixed passage → 256-dimensional voice embedding. Each diarized speaker is matched by <b>cosine similarity</b> (match ≥ 0.55 and a 0.06 margin over the next candidate); companions can also be enrolled.</td><td>Decides which voice is the participant; if it cannot decide, the session is refused (SPEAKER_UNVERIFIED) rather than guessing.</td></tr>
+  <tr><td>Text features (3096)</td><td>24 <b>lexical features</b> (pronoun rates "I/me/my", absolutist words, negative/positive words, negations, hedges, past tense, sleep/fatigue words, type-token ratio, answer lengths…) + <b>all-mpnet-base-v2 sentence embeddings</b> (768-d per sentence) pooled as mean, length-weighted mean, max and std = 3072</td><td>Lexical features are interpretable and research-backed; sentence embeddings capture meaning. Max-pooling keeps a single very negative statement from being averaged away.</td></tr>
+  <tr><td>Audio features (64)</td><td>librosa: <b>RMS loudness</b> (dB), <b>YIN pitch</b> 65–400 Hz in semitones, jitter and shimmer proxies, voiced ratio, answer durations, words per answer, speaking rate, participant-only timing. Each series summarised by 9 functionals: mean, std, p10, p25, p50, p75, p90, IQR, slope</td><td>Flat pitch, low energy and slow speech are documented depression markers. Interviewer-dependent timing (24 features) was removed to avoid learning the interview protocol.</td></tr>
+  <tr><td>Video features (224)</td><td><b>OpenFace 2.2 (CLNF)</b>: 14 facial Action Unit intensities, 6 AU presence rates, gaze direction (camera and head frame); per-session mean, std, p10, p50, p90, max and frame-to-frame change; video resampled to 30 fps</td><td>Action Units (e.g. AU04 frown, AU12 smile, AU15 lip-corner depressor) and gaze are the research-recommended facial descriptors.</td></tr>
+  <tr><td>Per-modality classifier</td><td>scikit-learn Pipeline: <b>SimpleImputer(median) → StandardScaler → SelectKBest(ANOVA F-test) → LogisticRegression</b> (L2)</td><td>Only 107 training people: a simple, strongly regularised linear model generalises best and is fully explainable. Feature selection is inside the pipeline, so it never sees validation data.</td></tr>
+  <tr><td>Fusion</td><td><b>Late fusion by stacking</b>: a logistic regression on the three models' out-of-fold probabilities. Weights: text +1.99, audio +0.91, video −0.51, intercept −1.63</td><td>Learns how much to trust each modality. Early fusion (concatenating features) selected 50 text and 0 audio features — it silently discarded audio.</td></tr>
+  <tr><td>Decision threshold</td><td><b>Youden's J</b> (max sensitivity + specificity − 1) on out-of-fold predictions; fusion threshold 0.2945</td><td>Only ~30% are depressed; a 0.5 threshold would miss most of them.</td></tr>
+  <tr><td>Evaluation</td><td>Official AVEC-2017 split; test used once; <b>nested repeated stratified cross-validation</b> (5×4); <b>bootstrap 95% CIs</b> (10,000 resamples); paired bootstrap for model comparisons</td><td>Small data makes single numbers unstable; intervals show what is actually known.</td></tr>
+  <tr><td>Explainable AI</td><td>Exact linear attribution: contribution = coefficient × standardised value; the 3072 sentence-meaning contributions are summed into one item; modality share = |w·p| / Σ|w·p|; a glossary turns each feature into plain words</td><td>Counsellors and participants can see <i>why</i>, e.g. "used more negative words for every positive one".</td></tr>
+  <tr><td>Safety guards</td><td>Too-short refusal (below 167 words or 42 replies, the training minimum); speaker-unverified refusal; video-unavailable refusal; out-of-distribution warnings (features &gt; 4 SD from training) in the log; participant speech only; gender never used as a feature</td><td>A model fed data unlike its training set still returns a confident number; refusing is safer than a silently wrong report.</td></tr>
+</table>
+
+<h3>3.2 Web platform technologies</h3>
+<table>
+  <tr><th style="width:20%">Layer</th><th>Technology</th></tr>
+  <tr><td>Frontend</td><td>React 19, Vite 8, React Router, role-based layouts, reusable Loading / Empty / Error states, WCAG AA colour contrast, print-friendly report</td></tr>
+  <tr><td>Backend</td><td>Spring Boot 3.3.4 (Java 17), Spring Security, JWT (jjwt), BCrypt, JPA/Hibernate, Flyway migrations, REST controllers, global exception handler</td></tr>
+  <tr><td>Database</td><td>PostgreSQL 16 in Docker (docker-compose), JSONB columns for feature vectors</td></tr>
+  <tr><td>ML service</td><td>Python 3.11, FastAPI, scikit-learn 1.6.1, PyTorch + Transformers (mpnet), faster-whisper, pyannote.audio, librosa, OpenFace 2.2, MediaPipe, ffmpeg</td></tr>
+  <tr><td>Authentication</td><td>Username/email + password, Google Sign-In (ID token verified with Google's official library — never auto-creates accounts or bypasses admin approval), email verification, forgot/reset password with expiring tokens, optional reCAPTCHA v3, show/hide password</td></tr>
+  <tr><td>Security</td><td>Role-based access (ADMIN / COUNSELOR), admin approval of counsellor applications, rate-limit filter, CORS allow-list, internal ML endpoints protected by a shared token (constant-time comparison), SHA-256 of every model file, audit log</td></tr>
+  <tr><td>Privacy</td><td>Consent-gated research dataset (label = counsellor's judgement, never the model's), original recordings purged after features are stored, per-participant data erasure</td></tr>
+</table>
+</div>
+
+<!-- ============================== 4 ============================== -->
+<div class="page">
+<h2>4. System architecture and design</h2>
+<div class="arch">
+  <div class="col"><h4>Frontend — React</h4>
+    <ul><li>29 pages: login, request access, forgot/reset password, verify email</li><li>Counsellor: dashboard, participants, sessions, new session, voice enrolment, report, settings, profile</li><li>Admin: home, applications, users, models, dataset, privacy, voice passage</li><li>Help, crisis resources, terms, privacy policy</li></ul></div>
+  <div class="col"><h4>Backend — Spring Boot (port 8080)</h4>
+    <ul><li>19 REST controllers, 31 service classes, 27 JPA entities</li><li>JWT authentication and role checks</li><li>Session processing: calls the ML service, stores prediction, report, explanation and features</li><li>Model version management, dataset export, audit log, media purge</li></ul></div>
+  <div class="col"><h4>ML service — FastAPI (port 8000, internal only)</h4>
+    <ul><li><code>/process</code>: full pipeline, returns prediction + explanation + features</li><li><code>/enroll-voice</code>: voiceprint from a recording</li><li><code>/internal/validate-model</code>, <code>/internal/reload-models</code>: admin model lifecycle (token-protected)</li><li>Models loaded from an active manifest; hot reload without restart</li></ul></div>
+</div>
+<p style="text-align:center" class="small">Browser ⇄ <b>REST + JWT</b> ⇄ Spring Boot ⇄ <b>JDBC</b> ⇄ PostgreSQL &nbsp;·&nbsp; Spring Boot ⇄ <b>internal REST (shared token)</b> ⇄ FastAPI ML service ⇄ model files + ffmpeg / Whisper / pyannote / OpenFace</p>
+
+<h3>Why three services instead of one?</h3>
+<p>The ML ecosystem (PyTorch, Whisper, scikit-learn) is Python; the business application (security, transactions, database) is
+best served by Spring Boot. Separating them lets the ML service be restarted, scaled or kept off the internet independently,
+and the Java backend never has to load a Python model.</p>
+
+<h3>Key database entities (PostgreSQL, 14 Flyway migrations)</h3>
+<table>
+  <tr><th>Area</th><th>Entities</th></tr>
+  <tr><td>Accounts</td><td>User, Role, UserStatus, CounselorApplication, VerificationDocument, ProfessionalProfile, PasswordResetToken, EmailVerificationToken</td></tr>
+  <tr><td>Clinical workflow</td><td>Participant, Session, SessionStatus, SessionCompanion, SessionFeatures, Prediction, Report, ExplanationFactor, CounselorJudgment</td></tr>
+  <tr><td>Speakers</td><td>CounselorVoiceprint, SpeakerAttribution, EnrollmentPassageEntity</td></tr>
+  <tr><td>ML operations</td><td>ModelVersion, ModelModality (TEXT, AUDIO, VIDEO, FUSION)</td></tr>
+  <tr><td>Research &amp; governance</td><td>DatasetSample, DatasetEligibilityStatus, AuditLog</td></tr>
+</table>
+
+<h3>Session flow (what happens when a counsellor uploads)</h3>
+<ol>
+  <li>Counsellor creates a session for a participant, chooses the language, uploads or records the conversation.</li>
+  <li>Backend stores the file, marks the session <b>PROCESSING</b> (committed in its own transaction so the status is visible immediately) and calls the ML service (60-minute timeout).</li>
+  <li>ML service checks the language has a complete model set, then starts OpenFace in parallel with transcription.</li>
+  <li>Whisper transcribes; pyannote diarizes; voiceprints identify counsellor, companions and participant.</li>
+  <li>Text, audio and video features are extracted for the participant only; each model gets its inputs by column name.</li>
+  <li>Guards: too short → <b>TOO_SHORT</b>; participant not identifiable → <b>SPEAKER_UNVERIFIED</b>; no face while video is required → refused with a message.</li>
+  <li>Three probabilities are fused, the threshold applied, and an explanation computed.</li>
+  <li>Backend stores prediction, report, explanation factors, features and DAIC-WOZ-format transcript; session → <b>COMPLETED</b>.</li>
+  <li>Counsellor reads the report, records their own judgement; with consent, the session joins the research dataset and the original media is purged.</li>
+</ol>
+</div>
+
+<!-- ============================== 5 ============================== -->
+<div class="page">
+<h2>5. Implementation status (Review 1 requires ≥ 80%)</h2>
+<table>
+  <tr><th style="width:30%">Module</th><th style="width:12%">Status</th><th>What exists</th></tr>
+  <tr><td>Authentication &amp; accounts</td><td class="done">Done</td><td>Login, JWT, roles, counsellor application with document upload, admin approval, forgot/reset password, email verification, Google Sign-In, CAPTCHA, show/hide password (Google, CAPTCHA and email need their keys configured)</td></tr>
+  <tr><td>Admin console</td><td class="done">Done</td><td>Dashboard stats, applications review, users, model management (upload/activate/revert for 4 models), editable enrolment passage, dataset export, privacy/erasure, audit log</td></tr>
+  <tr><td>Counsellor workflow</td><td class="done">Done</td><td>Dashboard, participants (repeat interviews), sessions, new session (upload), voice enrolment (record or upload), settings, profile</td></tr>
+  <tr><td>Media pipeline</td><td class="done">Done</td><td>ffmpeg, Whisper transcription, pyannote diarization, voiceprint identification of counsellor/companion/participant</td></tr>
+  <tr><td>Feature extraction</td><td class="done">Done</td><td>Text 3096, audio 64 (and legacy 85), video 224 (OpenFace) and 111 (MediaPipe) — verified against DAIC-WOZ training features</td></tr>
+  <tr><td>Models &amp; fusion</td><td class="done">Done</td><td>Four DAIC-WOZ models installed and active; name-based validation of uploads; hot reload</td></tr>
+  <tr><td>Report &amp; explainable AI</td><td class="done">Done</td><td>Depressed / Not depressed, confidence, modality contributions, per-feature explanation, plain-language section, counsellor judgement, print</td></tr>
+  <tr><td>Research dataset &amp; privacy</td><td class="done">Done</td><td>Consent, counsellor-judgement labels, export, media purge, erasure</td></tr>
+  <tr><td>Robustness to new microphones/cameras</td><td class="part">Partial</td><td>Out-of-distribution warnings are logged; loudness calibration and showing the warning on the report are planned</td></tr>
+  <tr><td>Automated tests &amp; CI</td><td class="part">Partial</td><td>Verification scripts, API integration tests and manual testing done; JUnit / pytest / frontend suite and CI planned</td></tr>
+  <tr><td>Deployment</td><td class="todo">Planned</td><td>Runs locally (Docker PostgreSQL + three services); HTTPS hosting planned</td></tr>
+</table>
+<div class="box ok"><b>Estimate:</b> every core workflow is implemented end to end — login → approval → enrolment → upload →
+analysis → explained report → judgement → dataset — which is comfortably above the 80% requirement. What remains is
+hardening, configuration of third-party keys, a test suite, calibration and deployment.</div>
+
+<h3>Plan for the remaining work (Review 2)</h3>
+<table>
+  <tr><th>#</th><th>Task</th><th>Outcome</th></tr>
+  <tr><td>1</td><td>Configure Google OAuth client, SMTP and reCAPTCHA keys</td><td>Google login, verification e-mails and CAPTCHA live</td></tr>
+  <tr><td>2</td><td>Show out-of-range warnings on the report; loudness normalisation for new microphones</td><td>Counsellor sees when a recording is unlike the training data</td></tr>
+  <tr><td>3</td><td>Re-evaluate video: keep 3-way fusion or switch to text+audio fusion (supported without code change)</td><td>Evidence-based final model</td></tr>
+  <tr><td>4</td><td>Automated tests (JUnit, pytest, Vitest) and GitHub Actions CI</td><td>Every commit tested</td></tr>
+  <tr><td>5</td><td>Deployment with HTTPS; ML service on a private network</td><td>Usable by the counsellor</td></tr>
+  <tr><td>6</td><td>Pilot with counsellor-labelled sessions; retrain using the platform's research dataset</td><td>Models adapted to Indian users and recording conditions</td></tr>
+</table>
+</div>
+
+<!-- ============================== 6 ============================== -->
+<div class="page">
+<h2>6. Evaluation sheet → what to show for each mark</h2>
+<p class="small muted">Each metric carries 5 marks (1 Bad … 5 Excellent). Team Work: 6 × 5 = 30, scaled to 20. Individual Work: 4 × 5 = 20, scaled to 10. Total 30 per student.</p>
+<table>
+  <tr><th style="width:26%">Metric</th><th>Evidence to show</th></tr>
+  <tr><td><span class="tag">TWE 1</span>System architecture &amp; design</td><td>Section 4 diagram; why three services; database entities; session flow; Flyway migrations</td></tr>
+  <tr><td><span class="tag">TWE 2</span>Module development (~80%)</td><td>Section 5 status table; live demo of the full workflow; four models active in Admin → Models</td></tr>
+  <tr><td><span class="tag">TWE 3</span>UI/UX &amp; functional features</td><td>Consistent violet theme, role-based navigation, loading/empty/error states, accessible contrast, plain-language report, help and crisis pages</td></tr>
+  <tr><td><span class="tag">TWE 4</span>Technology &amp; practices</td><td>React/Spring Boot/FastAPI/PostgreSQL; layered backend (controller → service → repository); DTOs; validation; JWT/BCrypt; env-based config with secrets in gitignored .env; documented code</td></tr>
+  <tr><td><span class="tag">TWE 5</span>Integration &amp; version control</td><td>REST contracts between the three services; internal token; model manifest; Git history (32 commits) — <b>push to GitHub before the review</b></td></tr>
+  <tr><td><span class="tag">TWE 6</span>Testing, debugging &amp; demo</td><td>Verification that reproduces the published AUCs; API tests of the model rules; end-to-end run; list of real bugs found and fixed (Q-G5); working demo</td></tr>
+  <tr><td><span class="tag">IWE 1</span>Presentation &amp; communication</td><td>60-second pitch (page 2); each member explains their module in 2 minutes</td></tr>
+  <tr><td><span class="tag">IWE 2</span>Technical knowledge</td><td>Sections 2–3; question bank sections H–K</td></tr>
+  <tr><td><span class="tag">IWE 3</span>Individual contribution</td><td>Each member names the modules they built, a problem they solved, and shows its code or screen</td></tr>
+  <tr><td><span class="tag">IWE 4</span>Viva / panel interaction</td><td>Question bank sections L–M; answer honestly, including limitations</td></tr>
+</table>
+
+<h2 style="margin-top:16px">7. Demo script (8–10 minutes)</h2>
+<ol>
+  <li><b>Start everything before the panel arrives</b>: Docker PostgreSQL, ML service, backend, frontend. Keep a completed session report open in a tab as a backup.</li>
+  <li><b>Login page</b>: show show/hide password, forgot password, request-access link (and Google button if configured).</li>
+  <li><b>Request counsellor access</b> → log in as <b>Admin</b> → approve the application (shows the approval workflow).</li>
+  <li><b>Admin → Models</b>: the four active models (text 3096, audio 64, video 224, fusion 3 inputs) with version history; explain upload validation.</li>
+  <li><b>Admin → Voice passage</b>: the editable enrolment passage.</li>
+  <li><b>Counsellor</b>: voice enrolment (record or upload) → create participant → new session → upload a recording of <b>at least ~3 minutes</b> of participant speech (shorter clips are correctly refused as too short).</li>
+  <li>While it processes: explain the pipeline (Section 3.1) and the status changes.</li>
+  <li><b>Report</b>: Depressed / Not depressed, confidence, modality contributions, factor list, "In plain words" section, counsellor judgement, print.</li>
+  <li><b>Admin → Dataset / Privacy / Audit</b>: consent-based dataset and erasure.</li>
+  <li>Close with results (Figure 1) and the plan for the remaining work.</li>
+</ol>
+</div>
+
+<!-- ============================== 8 Q&A ============================== -->
+<div class="page">
+<h2>8. Question bank with answers</h2>
+<div class="box"><b>Ten numbers to memorise:</b> 188 participants (107 / 34 / 47) · PHQ-8 ≥ 10 = depressed · ~30% depressed ·
+fusion accuracy 70.2%, AUC 0.768, recall 78.6% · text AUC 0.753 · audio 0.602 · video 0.584 · features 3096 / 64 / 224 ·
+fusion weights +1.99 / +0.91 / −0.51 · threshold 0.2945 · minimum 167 words / 42 replies.</div>
+
+<h3>A. The project and the problem</h3>
+<div class="qa"><p class="q">A1. What is your project?</p><p class="a">A web platform that screens for signs of depression from a recorded counselling conversation, using text, voice and facial features, three machine-learning models and a fusion model, and explains the result in plain language. It supports the counsellor's judgement; it does not diagnose.</p></div>
+<div class="qa"><p class="q">A2. Who are the users?</p><p class="a">Admins (approve counsellors, manage models, dataset and privacy) and counsellors (manage participants and sessions, read reports, record their own judgement). Participants do not log in; they are recorded with consent.</p></div>
+<div class="qa"><p class="q">A3. Why multimodal?</p><p class="a">Depression shows up in what people say (negative, self-focused words), how they speak (flat pitch, low energy) and facial expression (less smiling). Each modality alone is weak; fusion combines them. In our results fusion has the highest AUC (0.768) and recall (78.6%).</p></div>
+<div class="qa"><p class="q">A4. What is the output?</p><p class="a">Depressed or Not depressed, a probability-based confidence, how much text, audio and video contributed, the strongest factors with their direction, and a plain-language explanation. The counsellor then records their own assessment.</p></div>
+<div class="qa"><p class="q">A5. What is novel compared with existing work?</p><p class="a">Most DAIC-WOZ work stops at a notebook. We built a deployable, secured platform with real speaker identification, participant-only (leak-free) modelling, exact explanations, model version management with validation, and a consent-based dataset that uses the counsellor's judgement as the label.</p></div>
+
+<h3>B. System architecture and design (TWE 1)</h3>
+<div class="qa"><p class="q">B1. Explain your architecture.</p><p class="a">Three tiers: React frontend; Spring Boot backend with PostgreSQL for users, sessions and reports; a FastAPI Python ML service for the pipeline and models. The frontend talks only to the backend with JWT; the backend calls the ML service over an internal REST API protected by a shared token.</p></div>
+<div class="qa"><p class="q">B2. Why a separate Python service?</p><p class="a">The ML libraries are Python, and model loading is heavy. Isolating it keeps the web backend fast and secure, lets the ML service be restarted or scaled independently and kept off the public internet, and lets models be replaced without touching Java code.</p></div>
+<div class="qa"><p class="q">B3. Describe the database design.</p><p class="a">PostgreSQL with 27 JPA entities managed by 14 Flyway migrations: accounts (users, applications, documents, tokens), clinical workflow (participants, sessions, companions, features, predictions, reports, explanation factors, judgements), speakers (voiceprints, attributions), ML operations (model versions) and governance (dataset samples, audit log). Feature vectors are stored as JSONB.</p></div>
+<div class="qa"><p class="q">B4. Why Flyway?</p><p class="a">Versioned, repeatable schema changes: every database change is a numbered SQL file (V1…V14) applied automatically at startup, so every machine has the same schema and the history is in Git.</p></div>
+<div class="qa"><p class="q">B5. Walk through the flow when a session is uploaded.</p><p class="a">See Section 4: store file → PROCESSING → ML service → transcribe, diarize, identify participant → extract features → guards → predict and fuse → explanation → store report → COMPLETED → counsellor judgement → optional dataset and media purge.</p></div>
+<div class="qa"><p class="q">B6. How are models versioned and switched?</p><p class="a">An admin uploads a .joblib per modality and language. The ML service validates it (loadable, has predict_proba and a threshold, and every input column it names is a feature we measure). Activation writes an active manifest and hot-reloads models; revert returns to the built-in or previous version. Each file's SHA-256 is recorded.</p></div>
+<div class="qa"><p class="q">B7. How does the system know which speaker is the participant?</p><p class="a">The counsellor enrols their voice by reading a fixed passage; companions can enrol too. Each diarized speaker's embedding is compared by cosine similarity; a match needs ≥ 0.55 and a 0.06 margin over the next candidate. The remaining unmatched speaker is the participant. If it is ambiguous, the session is refused rather than analysing the wrong person.</p></div>
+<div class="qa"><p class="q">B8. How does multi-language support work?</p><p class="a">Models are installed per language. A language becomes selectable only when its text, audio and fusion models are all active; English models are never silently used for another language. Whisper transcribes in the selected language.</p></div>
+
+<h3>C. Module development and the 80% requirement (TWE 2)</h3>
+<div class="qa"><p class="q">C1. What percentage is complete, and how do you justify it?</p><p class="a">Every core workflow works end to end (Section 5) — authentication and approval, enrolment, upload, analysis with four trained models, explained report, judgement, dataset and privacy. Remaining work is configuration of external keys, calibration, automated tests and deployment — about 15–20%.</p></div>
+<div class="qa"><p class="q">C2. Which modules are pending?</p><p class="a">Loudness calibration and showing out-of-range warnings on the report, an automated test suite with CI, HTTPS deployment, and configuring Google OAuth, SMTP and reCAPTCHA keys (the code for these is complete).</p></div>
+<div class="qa"><p class="q">C3. How will you achieve the remaining outcomes?</p><p class="a">Follow the plan table in Section 5: keys and warnings first, then the video decision, then tests and CI, then deployment and a pilot with counsellor-labelled sessions.</p></div>
+<div class="qa"><p class="q">C4. Were the models trained by you?</p><p class="a">Yes, on the official DAIC-WOZ corpus (approved by USC) on the college GPU machine, following a documented workflow: dataset analysis, literature review, feature extraction identical to production, training on train, tuning on dev, testing once. We then verified on our machine that the website reproduces the training features and the reported AUCs exactly.</p></div>
+<div class="qa"><p class="q">C5. What happens if a module fails, e.g. the ML service is down?</p><p class="a">The session is marked FAILED with a readable message and can be retried; the rest of the application keeps working. Model reload only swaps models after every new model loads successfully, so a bad file never takes inference down.</p></div>
+
+<h3>D. UI/UX and functional features (TWE 3)</h3>
+<div class="qa"><p class="q">D1. How did you design the UI?</p><p class="a">A consistent violet theme, desktop-first layouts (1366–1920 px), role-based navigation, and reusable components for loading, empty and error states, so every page behaves the same way. Colours were adjusted to meet WCAG AA contrast.</p></div>
+<div class="qa"><p class="q">D2. How is the report made understandable?</p><p class="a">The result is stated plainly as Depressed / Not depressed. Each factor is translated from a technical name (e.g. <code>lex_neg_pos_ratio</code>) to words ("used more negative words for every positive one"), and an "In plain words" section can be read to the participant, including the error rate and the fact that it is not a diagnosis.</p></div>
+<div class="qa"><p class="q">D3. What about users in crisis?</p><p class="a">There is a crisis resources page, and the report never tells the participant what to do — that is the counsellor's role.</p></div>
+<div class="qa"><p class="q">D4. How does voice enrolment work for the user?</p><p class="a">The counsellor can record directly in the browser or upload a file, reading an admin-editable passage (the same passage for counsellors and companions). Any format is normalised to 16 kHz mono with ffmpeg.</p></div>
+<div class="qa"><p class="q">D5. How did you handle navigation bugs such as the back button?</p><p class="a">Public pages (login, forgot password, request access) are wrapped in a PublicOnlyRoute, and one component (AuthContext) owns the session and reacts to an "unauthorized" event from the API client. This fixed the login page appearing inside the admin layout after pressing Back.</p></div>
+
+<h3>E. Technology and development practices (TWE 4)</h3>
+<div class="qa"><p class="q">E1. Why React, Spring Boot, PostgreSQL and FastAPI?</p><p class="a">React for a component-based UI; Spring Boot for mature security, transactions and a layered architecture; PostgreSQL for relational integrity plus JSONB for feature vectors; FastAPI because the ML stack is Python and it gives typed, validated APIs.</p></div>
+<div class="qa"><p class="q">E2. How is authentication implemented?</p><p class="a">Passwords hashed with BCrypt; login returns a signed JWT sent as a Bearer token; Spring Security checks it and the role on every request. Google Sign-In verifies Google's ID token with the official library (audience pinned, verified e-mail required) and only logs in accounts that already exist and are approved.</p></div>
+<div class="qa"><p class="q">E3. What security measures did you implement?</p><p class="a">Role-based access, admin approval, JWT, BCrypt, expiring reset and verification tokens, a rate-limit filter, CORS allow-list, CAPTCHA option, file-type validation, a shared-token and constant-time check on internal ML endpoints, model SHA-256 hashes, an audit log, and secrets kept in gitignored .env files.</p></div>
+<div class="qa"><p class="q">E4. Why is uploading a .joblib model dangerous and how do you handle it?</p><p class="a">A .joblib is a Python pickle, and loading one can execute arbitrary code. Upload is restricted to admins, the page warns about it, the internal endpoint needs a secret token, every file is hashed, and the ML service should never be reachable from the internet.</p></div>
+<div class="qa"><p class="q">E5. What coding standards did you follow?</p><p class="a">Layered backend (controller → service → repository), DTOs instead of exposing entities, a global exception handler with consistent error responses, environment-based configuration, meaningful commit messages, and comments that explain <i>why</i> a decision was made.</p></div>
+<div class="qa"><p class="q">E6. What libraries does the ML side use?</p><p class="a">scikit-learn (models), PyTorch and Transformers (mpnet embeddings), faster-whisper (speech-to-text), pyannote.audio (diarization and voiceprints), librosa (audio features), OpenFace 2.2 (facial action units and gaze), MediaPipe (face geometry), ffmpeg (media conversion).</p></div>
+<div class="qa"><p class="q">E7. How do you keep the dataset out of the repository?</p><p class="a">.gitignore excludes the DAIC-WOZ data, training artefacts, model files, recordings, test media and all .env files. The corpus licence does not allow redistribution.</p></div>
+</div>
+
+<div>
+<h3>F. Module integration and version control (TWE 5)</h3>
+<div class="qa"><p class="q">F1. How are the modules integrated?</p><p class="a">Through REST contracts: frontend ↔ backend (JSON, JWT), backend ↔ ML service (<code>/process</code>, <code>/enroll-voice</code>, internal model endpoints). The ML response shape is fixed, so models can change without changing the backend or frontend.</p></div>
+<div class="qa"><p class="q">F2. How do you use Git?</p><p class="a">Feature-sized commits with descriptive messages (32 so far), secrets and data excluded by .gitignore. <i>[Before the review: push to a GitHub repository and show the commit history and, if possible, branches or pull requests per member.]</i></p></div>
+<div class="qa"><p class="q">F3. How did the team collaborate?</p><p class="a">Modules were split (frontend, backend, ML pipeline, model training, testing/documentation) and integrated through the agreed API contracts. <i>[Each member should describe their own part.]</i></p></div>
+<div class="qa"><p class="q">F4. How do the three services find each other?</p><p class="a">Configuration: the backend reads <code>ML_SERVICE_URL</code> and the shared token from its .env; the frontend derives the API address from the browser's own location, so it works on localhost and on the LAN without rebuilding.</p></div>
+<div class="qa"><p class="q">F5. What integration problems did you face?</p><p class="a">Timeouts (long recordings exceeded the backend's 2-minute HTTP timeout → a separate 60-minute pipeline client), format mismatches (mp4 enrolment → ffmpeg normalisation), embedding size mismatch (32-d mock vs 256-d real voiceprints → dimension guard), and a stale LAN IP in the frontend config (→ URL derived at runtime).</p></div>
+
+<h3>G. Testing, debugging and working demonstration (TWE 6)</h3>
+<div class="qa"><p class="q">G1. How did you test the system?</p><p class="a">(1) Verification that the website's feature extraction reproduces the training features on DAIC-WOZ transcripts, and that the text and audio models reproduce their published test AUCs exactly (0.7532, 0.6017). (2) API integration tests of the model rules (e.g. a 4-input fusion is rejected; a 3-input fusion cannot be activated before a video model). (3) End-to-end pipeline runs on real recordings. (4) Manual testing of every page and role flow.</p></div>
+<div class="qa"><p class="q">G2. How do you know the deployed model behaves like the trained one?</p><p class="a">We ran the website's own extractors on the DAIC-WOZ transcripts: the 24 lexical features match to 10⁻¹⁵, sentence vectors to 10⁻³ (GPU half precision), timing features to 10⁻¹³, and the per-person text probability matches within 0.0005.</p></div>
+<div class="qa"><p class="q">G3. Do you have unit tests?</p><p class="a">Not yet as an automated suite — testing so far is scripted verification and integration testing. Adding JUnit, pytest and frontend tests with GitHub Actions is part of the remaining plan.</p></div>
+<div class="qa"><p class="q">G4. How is invalid input handled?</p><p class="a">Upload type and size validation (up to 520 MB), language availability checks, and pipeline guards that refuse too-short interviews, unidentified speakers or missing faces with a clear message instead of producing a misleading result.</p></div>
+<div class="qa"><p class="q">G5. Give examples of bugs you found and fixed.</p><p class="a">(a) Every short test recording came out "depressed": the text model saw input far outside its training range and output a constant 0.254, which fused to just above the threshold — fixed with a minimum-length guard based on the training minimum. (b) An explanation said "spoke loudly" when the value was below average, because direction was inferred from the contribution's sign — now read from the measured value. (c) Sessions showed FAILED after 2 minutes — timeout. (d) PROCESSING status was invisible — committed in a separate transaction. (e) Revert always reverted English — language not passed. (f) Disabled buttons had 1.69:1 contrast — restyled to WCAG AA.</p></div>
+<div class="qa"><p class="q">G6. What is 80% working functionality in your demo?</p><p class="a">A counsellor can enrol, upload a session and receive an explained report produced by the four trained models; the admin can approve users and manage models, dataset and privacy.</p></div>
+<div class="qa"><p class="q">G7. What if the demo recording is short?</p><p class="a">It is refused as TOO_SHORT by design — the models were trained on interviews of 167–4,611 participant words, and scoring shorter ones produced meaningless results. Use a recording with a few minutes of participant speech.</p></div>
+
+<h3>H. The dataset</h3>
+<div class="qa"><p class="q">H1. What is DAIC-WOZ?</p><p class="a">The Distress Analysis Interview Corpus – Wizard of Oz, from the University of Southern California. 189 clinical-style interviews conducted by a virtual interviewer ("Ellie", controlled by a human operator), with audio, transcripts, facial features and PHQ-8 questionnaire scores. It was used in the AVEC 2016 and 2017 depression challenges. Access requires an approved request; ours was approved.</p></div>
+<div class="qa"><p class="q">H2. What is PHQ-8 and how is the label made?</p><p class="a">The 8-item Patient Health Questionnaire, each item 0–3, total 0–24. A score of 10 or more is the standard cut-off for depression, giving the binary label Depressed / Not depressed.</p></div>
+<div class="qa"><p class="q">H3. How was the data split?</p><p class="a">The official AVEC-2017 split: train 107, dev 34, test 47 participants, with no person in more than one split. Models were fitted on train (and train+dev for the final models), thresholds chosen by cross-validation, and test used once.</p></div>
+<div class="qa"><p class="q">H4. Is the dataset balanced? How did you handle imbalance?</p><p class="a">No — about 30% depressed (14 of 47 in test). We report AUC, F1, sensitivity and specificity rather than accuracy alone, and choose the decision threshold by Youden's J instead of 0.5, which would miss most depressed people.</p></div>
+<div class="qa"><p class="q">H5. Did you find problems in the dataset?</p><p class="a">Yes: participant 440 is corrupt in the official download (excluded); participant 409 has PHQ-8 = 10 but binary label 0; and the training split has an 18-point gap in depression rate between genders that does not exist in dev/test — so gender is never used as a feature.</p></div>
+<div class="qa"><p class="q">H6. Why not use the interviewer's questions?</p><p class="a">Burdisso et al. (2024) showed that a model reading only the interviewer's prompts reaches about 0.83 AUC on DAIC-WOZ, because the interview branches on the answers. That is leakage, and it disappears in real use. We use only the participant's speech, and removed 24 audio features that depended on the interviewer's timing.</p></div>
+
+<h3>I. Models and algorithms</h3>
+<div class="qa"><p class="q">I1. Which algorithm does each model use?</p><p class="a">Text, audio and video each use a scikit-learn pipeline: median imputation → standard scaling → SelectKBest (ANOVA F-test) → L2-regularised logistic regression. Fusion is a logistic regression stacked on the three probabilities.</p></div>
+<div class="qa"><p class="q">I2. Why logistic regression and not deep learning?</p><p class="a">Only 107–142 people for training: deep models overfit. The research log records six deep and attention architectures (BiLSTM, transformer, cross-attention, gated and bilinear fusion) at utterance level; all lost to simple models. Logistic regression is also exactly explainable.</p></div>
+<div class="qa"><p class="q">I3. What is SelectKBest and why use it?</p><p class="a">It keeps the k features with the highest ANOVA F-score against the label (text 50 of 3096, audio 25 of 64, video 25 of 224). With far more features than people, selection is essential. It runs inside the pipeline, so it is refitted in every fold and never sees validation data.</p></div>
+<div class="qa"><p class="q">I4. What does C = 0.01 mean for the text model?</p><p class="a">C is the inverse of regularisation strength; 0.01 means strong L2 regularisation, shrinking weights to prevent memorising 107 people.</p></div>
+<div class="qa"><p class="q">I5. What are the 24 lexical features?</p><p class="a">Word count, number of answers, words per answer (mean, std, median), type-token ratio, root TTR, mean word length, rates of first-person singular, first-person plural, second person, third person, absolutist, negative, positive, negation, hedge, past-tense and sleep/fatigue words, self-focus ratio, negative/positive ratio, sentiment balance, short- and long-answer rates.</p></div>
+<div class="qa"><p class="q">I6. What is all-mpnet-base-v2 and why pool four ways?</p><p class="a">A sentence-transformer that maps each sentence to a 768-dimensional meaning vector. Pooling over all answers with mean (overall tone), length-weighted mean (longer answers count more), max (the most extreme statement) and std (variability) gives 3072 features.</p></div>
+<div class="qa"><p class="q">I7. What are the audio features?</p><p class="a">Answer duration and words per answer, total speech time, speaking rate, loudness (RMS in dB), voiced ratio, pitch (YIN, in semitones), pitch range, jitter (pitch wobble) and shimmer (loudness wobble) proxies, and participant-only timing — each summarised with mean, std, percentiles, IQR and slope: 64 features.</p></div>
+<div class="qa"><p class="q">I8. What are Action Units?</p><p class="a">The Facial Action Coding System describes facial muscle movements, e.g. AU04 brow lowerer (frown), AU12 lip-corner puller (smile), AU15 lip-corner depressor, AU17 chin raiser, AU45 blink. OpenFace estimates their intensity and presence per frame; we summarise 14 intensities, 6 presence rates and gaze direction into 224 features.</p></div>
+<div class="qa"><p class="q">I9. What is fusion and which type did you use?</p><p class="a">Combining modalities. Early fusion concatenates features; late fusion combines each model's output. We use late fusion by stacking: a logistic regression trained on out-of-fold probabilities, so it learns how much to trust each modality (text +1.99, audio +0.91, video −0.51).</p></div>
+<div class="qa"><p class="q">I10. Why train the stacker on out-of-fold probabilities?</p><p class="a">If it were trained on predictions for people the base models had already seen, those predictions would be over-confident and the stacker would learn the wrong weights. Out-of-fold predictions imitate unseen data.</p></div>
+<div class="qa"><p class="q">I11. Why is the threshold 0.29 and not 0.5?</p><p class="a">It was chosen by Youden's J on out-of-fold predictions to balance sensitivity and specificity. With 30% prevalence, probabilities are generally low, and 0.5 would miss most depressed people.</p></div>
+<div class="qa"><p class="q">I12. What is diarization, and what is Whisper?</p><p class="a">Diarization answers "who spoke when" by clustering voice segments into speakers (pyannote). Whisper is an automatic speech-recognition model; faster-whisper is an optimised implementation that we run on CPU with int8 quantisation and word timestamps.</p></div>
+<div class="qa"><p class="q">I13. Why is video's fusion weight negative?</p><p class="a">Video was below chance in cross-validation (AUC 0.42), so when text and audio are known, a higher video probability is slightly associated with <i>not</i> depressed in the training data. The stacker learned that by itself. It shows video does not help on this dataset.</p></div>
+<div class="qa"><p class="q">I14. How do you prevent overfitting?</p><p class="a">Strong regularisation, feature selection inside the pipeline, simple models, nested cross-validation, thresholds from out-of-fold data, a test set used once, and reporting confidence intervals.</p></div>
+
+<h3>J. Results and evaluation</h3>
+<div class="qa"><p class="q">J1. What is the accuracy of each model?</p><p class="a">On the held-out test set (47 people): text 70.2%, audio 57.4%, video 57.4%, fusion 70.2%. AUC: 0.753, 0.602, 0.584 and 0.768. Fusion has the best recall: 78.6% (11 of 14 depressed people found). See Table 1.</p></div>
+<div class="qa"><p class="q">J2. Fusion and text have the same accuracy — so why fuse?</p><p class="a">Accuracy hides the trade-off. Fusion finds 11 depressed people instead of 9, has higher F1 (0.61 vs 0.56) and AUC (0.768 vs 0.753). For screening, missing a depressed person is worse than a false alarm the counsellor will review.</p></div>
+<div class="qa"><p class="q">J3. What is ROC-AUC and why report it?</p><p class="a">The probability that the model ranks a random depressed person above a random non-depressed one (0.5 = chance, 1 = perfect). It does not depend on the threshold or class imbalance, so it is the fairest single comparison.</p></div>
+<div class="qa"><p class="q">J4. Explain precision, recall and F1 for your fusion model.</p><p class="a">Precision 50%: of 22 people flagged, 11 were depressed. Recall 78.6%: of 14 depressed people, 11 were flagged. F1 0.611 is their harmonic mean.</p></div>
+<div class="qa"><p class="q">J5. What do the confidence intervals tell you?</p><p class="a">With 47 test people, the fusion AUC could reasonably be anywhere from 0.60 to 0.91. So small differences between models are not statistically meaningful — we say that openly and rely on cross-validation as well.</p></div>
+<div class="qa"><p class="q">J6. How does your result compare with published work?</p><p class="a">Many papers report 0.85–0.95 on DAIC-WOZ, but several used interviewer turns or tuned on test data. The official AVEC challenge baselines were modest. Our 0.70–0.77 AUC with participant-only data and a single test pass is in the honest range.</p></div>
+<div class="qa"><p class="q">J7. Which modality is most useful and why?</p><p class="a">Text: word habits and meaning (e.g. more negative words relative to positive ones) are the strongest markers in these interviews. Its fusion weight is the largest (+1.99).</p></div>
+<div class="qa"><p class="q">J8. Why did audio get worse after your change?</p><p class="a">The old audio features included response latency after the interviewer's questions; the interviewer was a scripted virtual agent, so those features partly measured the protocol. Removing them lowered CV AUC from 0.671 to 0.609, but the remaining model measures only the participant, which is what will exist in real counselling.</p></div>
+
+<h3>K. Explainable AI</h3>
+<div class="qa"><p class="q">K1. How is the prediction explained?</p><p class="a">Each model is linear, so each selected feature's exact contribution to the log-odds is coefficient × standardised value. We show the strongest factors, whether each was above or below average, and whether it pushed toward or away from depressed, plus each modality's share.</p></div>
+<div class="qa"><p class="q">K2. How do you explain 3072 embedding numbers?</p><p class="a">Individually they mean nothing, so their contributions are summed into one item: "taken as a whole, what was said was closer in meaning to what depressed participants said". For a linear model this sum is exact.</p></div>
+<div class="qa"><p class="q">K3. Why not SHAP or LIME?</p><p class="a">For a linear model with standardised inputs, the coefficient × value attribution is exactly the SHAP value relative to the training mean, and it is computed without sampling or approximation.</p></div>
+<div class="qa"><p class="q">K4. How does a participant understand it?</p><p class="a">A glossary turns every feature into plain words, and the "In plain words" section says what the computer looked at, what it noticed, that patterns are not a diagnosis, ordinary reasons for them, and that it is wrong about 3 times in 10.</p></div>
+
+<h3>L. Ethics, privacy and safety</h3>
+<div class="qa"><p class="q">L1. Is this a diagnostic tool?</p><p class="a">No. It is a screening aid. The report says so, and the counsellor's own judgement is recorded separately and is what counts.</p></div>
+<div class="qa"><p class="q">L2. How is consent and privacy handled?</p><p class="a">Sessions join the research dataset only with consent. The label stored is the counsellor's judgement, never the model's prediction. Original recordings are purged after features are stored, participants' data can be erased, and all admin actions are audited.</p></div>
+<div class="qa"><p class="q">L3. What about bias?</p><p class="a">The training data is 188 US adults interviewed by a virtual agent. We found a gender shortcut in the training split and excluded gender. Accents, languages, age groups and recording setups are untested — the platform logs when a recording is far outside the training data, and the plan includes retraining on the platform's own counsellor-labelled data.</p></div>
+<div class="qa"><p class="q">L4. What if the model is wrong?</p><p class="a">It is wrong about 3 in 10 times. False negatives are the risk, so fusion is tuned toward recall (78.6%). Every result is reviewed by a counsellor, and crisis resources are available in the app.</p></div>
+<div class="qa"><p class="q">L5. Where is data stored, and how is it protected?</p><p class="a">In PostgreSQL and server-side file storage; passwords are BCrypt-hashed; access requires JWT and the right role; recordings are deleted after processing; secrets are in environment files, not in code.</p></div>
+<div class="qa"><p class="q">L6. Why refuse sessions instead of always giving a result?</p><p class="a">Because a model given data unlike its training data still produces a confident-looking number. We saw exactly this: every short recording came out "depressed". A refusal with a reason is safer than a wrong report about someone's mental health.</p></div>
+
+<h3>M. Tough questions (be honest)</h3>
+<div class="qa"><p class="q">M1. 70% accuracy is low. Why should anyone use this?</p><p class="a">It is a screening aid that flags 11 of 14 depressed people for a counsellor to review, not a replacement for one. On this dataset, honestly evaluated, 70–77% is the realistic level; higher published numbers mostly come from leakage.</p></div>
+<div class="qa"><p class="q">M2. If video hurts, why is it in your final model?</p><p class="a">The project scope is multimodal, and the stacker gives video a small negative weight, so its effect is limited. The platform can switch to a text+audio fusion without code changes; choosing between them on a larger evaluation is part of our plan.</p></div>
+<div class="qa"><p class="q">M3. A happy person was predicted depressed in your testing. Explain.</p><p class="a">Those recordings were about a minute long — far shorter than any training interview — so the text model returned a constant just above the threshold. We traced it and added the too-short guard. We also found that different microphones change loudness features; out-of-range warnings are logged, and calibration is planned.</p></div>
+<div class="qa"><p class="q">M4. Will it work for Indian accents or Marathi?</p><p class="a">Not validated yet. Whisper handles many accents and languages, but the depression models were trained on US English. Other languages stay disabled until their own models are installed — the platform never substitutes English models. Retraining on local, counsellor-labelled data is the path.</p></div>
+<div class="qa"><p class="q">M5. Can someone fake the result?</p><p class="a">Yes, a person who acts differently can change the features — like any interview-based screening. It is meant for cooperative counselling sessions, and the counsellor's judgement is final.</p></div>
+<div class="qa"><p class="q">M6. Did you just use someone else's model?</p><p class="a">No. The models were trained on the official corpus with our documented workflow, and we verified on our own machine that the deployed feature extraction reproduces the training features and published AUCs exactly. The web platform, pipeline, identification, explanation and model management are our implementation.</p></div>
+<div class="qa"><p class="q">M7. Why is the test set so small, and does that matter?</p><p class="a">It is the official DAIC-WOZ test split (47 people). It matters: one person changes accuracy by 2.1 points, which is why we report confidence intervals and cross-validation on 142 people.</p></div>
+<div class="qa"><p class="q">M8. What would you do with more time?</p><p class="a">Collect consented, counsellor-labelled sessions from the platform and retrain for local languages and recording conditions; calibrate audio and video for new devices; add automated tests and CI; deploy securely; and study whether video helps on the new data.</p></div>
+
+<h3>N. Individual contribution and presentation (IWE 1 &amp; 3)</h3>
+<div class="qa"><p class="q">N1. What was your individual contribution?</p><p class="a"><i>Prepare your own answer:</i> name your modules (e.g. frontend pages, backend services, ML pipeline, model training, testing/documentation), one technical problem you solved, and be ready to open that code or screen.</p></div>
+<div class="qa"><p class="q">N2. Explain the part of the code you wrote.</p><p class="a">Pick one file you know well and explain its input, output and one design decision, e.g. <code>real_inference.py</code> (the orchestrator), <code>feature_space.py</code> (name-based model inputs), <code>SessionProcessingService.java</code> (status handling) or <code>AdminModels.jsx</code> (model management screen).</p></div>
+<div class="qa"><p class="q">N3. Presentation tips</p><p class="a">Start with the 60-second pitch, show the demo before the theory, point at Figure 1 when asked about accuracy, say "we measured" rather than "it works", and when you do not know, say what you would check.</p></div>
+</div>
+
+<!-- ============================== 9 ============================== -->
+<div style="margin-top:14px">
+<h2>9. Before-review checklist</h2>
+<table>
+  <tr><th style="width:5%">✓</th><th>Item</th></tr>
+  <tr><td>☐</td><td><b>Create a GitHub repository and push</b> (the sheet marks Git/GitHub usage). Confirm Dataset/, My_Work/, Friends_Work/, Test/ and every .env are not in it.</td></tr>
+  <tr><td>☐</td><td>All members present; each has rehearsed their 2-minute module explanation (IWE 3).</td></tr>
+  <tr><td>☐</td><td>Docker Desktop running; start PostgreSQL, ML service, backend and frontend 20 minutes early.</td></tr>
+  <tr><td>☐</td><td>Demo recording ready with at least ~3 minutes of participant speech and the face in view; counsellor voice already enrolled.</td></tr>
+  <tr><td>☐</td><td>A completed report open in a tab as a backup in case processing is slow.</td></tr>
+  <tr><td>☐</td><td>Admin → Models shows all four DAIC-WOZ models as serving.</td></tr>
+  <tr><td>☐</td><td>This guide, Figure 1 and Table 1 printed or open.</td></tr>
+  <tr><td>☐</td><td>Coordinate with your guide and panel members in advance about the time slot.</td></tr>
+</table>
+
+<h2 style="margin-top:14px">Glossary</h2>
+<table>
+  <tr><th style="width:22%">Term</th><th>Meaning</th></tr>
+  <tr><td>Accuracy</td><td>Share of all people classified correctly.</td></tr>
+  <tr><td>Precision</td><td>Of those flagged depressed, the share who really are.</td></tr>
+  <tr><td>Recall / sensitivity</td><td>Of the depressed people, the share the model flags.</td></tr>
+  <tr><td>Specificity</td><td>Of the non-depressed people, the share correctly cleared.</td></tr>
+  <tr><td>F1</td><td>Harmonic mean of precision and recall for the depressed class.</td></tr>
+  <tr><td>ROC-AUC</td><td>Chance a random depressed person is scored above a random non-depressed one; 0.5 = guessing.</td></tr>
+  <tr><td>Youden's J</td><td>Sensitivity + specificity − 1; the threshold that maximises it is used.</td></tr>
+  <tr><td>Cross-validation</td><td>Repeatedly training on part of the data and testing on the rest; nested CV also tunes inside each fold.</td></tr>
+  <tr><td>Bootstrap CI</td><td>Resampling the test people 10,000 times to see how much a metric could vary.</td></tr>
+  <tr><td>Stacking</td><td>A model trained on other models' outputs (our fusion).</td></tr>
+  <tr><td>Diarization</td><td>Splitting audio into "who spoke when".</td></tr>
+  <tr><td>Embedding</td><td>A vector of numbers representing meaning (sentences) or identity (voices).</td></tr>
+  <tr><td>Action Unit (AU)</td><td>A single facial muscle movement from the Facial Action Coding System.</td></tr>
+  <tr><td>PHQ-8</td><td>Eight-question depression questionnaire; ≥ 10 means depressed.</td></tr>
+  <tr><td>Leakage</td><td>Information in training data that will not exist in real use, inflating results (e.g. the interviewer's questions).</td></tr>
+  <tr><td>Out-of-distribution</td><td>Input unlike anything in the training data; predictions become unreliable.</td></tr>
+</table>
+<p class="small muted" style="margin-top:12px">Sources: My_Work/README.md, results/test_results.csv, results/crossvalidation_results.csv, results/FULL_RESEARCH_LOG.md;
+project repository (README, source code); verification runs on 11 September 2026.</p>
+</div>
+
+</body>
+</html>
