@@ -73,5 +73,11 @@ training/*.report.json
 # built-in models (no double underscore) stay tracked.
 ml-service/models/*__*.joblib
 ml-service/models/active_manifest.json
+
+# The DAIC-WOZ training hand-off, kept locally like Friends_Work/. Its weights
+# and its research log (which names individual participants' labels) are
+# derived from a licensed corpus; the models reach the app by being uploaded
+# through Admin -> Models, never by being committed.
+My_Work/
 __pycache__/
 *.pyc

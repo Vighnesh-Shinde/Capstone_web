@@ -76,6 +76,23 @@ AUDIO_COLS = [
 ]
 assert len(AUDIO_COLS) == EXPECTED_FEATURE_COUNT
 
+# Three timing features re-derived from the PARTICIPANT's turns alone, used by
+# the models trained on the official DAIC-WOZ release (My_Work, "clean-64").
+#
+# That training run dropped 24 of the 85 columns above because they depend on
+# the interviewer: response latency is measured from the end of the
+# interviewer's question, and session length and the gaps between turns span
+# the interviewer's speech. On DAIC-WOZ the interviewer was a scripted virtual
+# agent, so those timings describe the protocol as much as the person — and
+# they change completely when a human counsellor asks the questions. These
+# three keep what was salvageable, measured from the first thing the
+# participant said to the last.
+PARTICIPANT_ONLY_COLS = ["session_len_s_pt", "speech_ratio_pt", "utts_per_minute_pt"]
+
+# Every named audio feature this module can produce. A model may use any
+# subset, in any order — its own "cols" list decides; see feature_space.py.
+ALL_AUDIO_COLS = AUDIO_COLS + PARTICIPANT_ONLY_COLS
+
 
 def _clean_words(text: str) -> int:
     return len(re.sub(r"<[^>]*>", " ", text).split())
@@ -191,7 +208,32 @@ def _acoustic_features(wav_path: str, transcript: "DiarizedTranscript") -> dict[
     return out
 
 
-def compute_audio_features(wav_path: str, transcript: "DiarizedTranscript") -> np.ndarray:
+def _participant_only_timing(transcript: "DiarizedTranscript") -> dict[str, float]:
+    """
+    Ported from My_Work/training_scripts/extract_canonical.py,
+    participant_only_timing(). Never references a counsellor segment.
+    """
+    p = transcript.participant_segments
+    if not p:
+        return {"session_len_s_pt": 0.0, "speech_ratio_pt": 0.0, "utts_per_minute_pt": 0.0}
+    span = float(max(s.end for s in p) - min(s.start for s in p))
+    speech = float(np.clip(np.array([s.end - s.start for s in p], dtype=np.float64), 0, None).sum())
+    return {
+        "session_len_s_pt": span,
+        "speech_ratio_pt": speech / span if span > 0 else 0.0,
+        "utts_per_minute_pt": 60.0 * len(p) / span if span > 0 else 0.0,
+    }
+
+
+def compute_audio_feature_map(wav_path: str, transcript: "DiarizedTranscript") -> dict[str, float]:
+    """
+    Every audio feature this session yields, by name.
+
+    A feature that could not be measured — too little voiced speech for a pitch
+    estimate, say — is ABSENT rather than zero. The DAIC-WOZ models were
+    trained with such gaps left empty for their own imputer to fill with the
+    training median, and a zero would be a real measurement of "no pitch at all".
+    """
     if not transcript.participant_segments:
         raise ValueError(
             "No participant speech segments to extract audio features from -- "
@@ -201,7 +243,23 @@ def compute_audio_features(wav_path: str, transcript: "DiarizedTranscript") -> n
     combined: dict[str, float] = {}
     combined.update(_timing_features(transcript))
     combined.update(_acoustic_features(wav_path, transcript))
+    combined.update(_participant_only_timing(transcript))
+    return combined
 
+
+def compute_audio_features(wav_path: str, transcript: "DiarizedTranscript") -> np.ndarray:
+    """
+    The original 85-column vector, which is what the session record stores.
+
+    Kept at 85 whatever model is serving, so every stored row has the same
+    shape and the research export does not change meaning between sessions.
+    Prediction does not use this: it builds each model's input from the named
+    map instead, in that model's own column order.
+    """
+    return legacy_audio_vector(compute_audio_feature_map(wav_path, transcript))
+
+
+def legacy_audio_vector(combined: dict[str, float]) -> np.ndarray:
     missing = [c for c in AUDIO_COLS if c not in combined]
     if missing:
         logger.warning(

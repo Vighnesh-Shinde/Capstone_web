@@ -56,29 +56,32 @@ features) since the real video model's feature set hasn't been provided yet.
 
 ## Real model integration
 
-Trained text/audio/fusion models (SVM, Logistic Regression, Logistic
-Regression respectively — full detail in each model's `INFO.txt`/`RESULTS.txt`
-under `friend_shared_work/`) are wired in behind `app/real/`, running side by
-side with the mock:
+Four trained models — text, audio, video, and a fusion model over their
+probabilities — are wired in behind `app/real/`, running side by side with the
+mock. The ones intended to serve were trained on the official DAIC-WOZ
+release; `My_Work/README.md` has the training run and its held-out results.
 
 ```
-video ─> app/real/media_pipeline.py            ffmpeg extract -> faster-whisper transcribe (word timestamps)
-              │                                  -> pyannote.audio diarize -> identify participant vs counselor
-              v
-       app/real/text_features.py  (STUB)  ──> model1 (text, SVM)   ─┐
-       app/real/audio_features.py (STUB)  ──> model2 (audio, LogReg)─┼─> model4 (fusion, LogReg) ─> prediction
-                                                                      │    (model3/video and model5 intentionally
-                                                                      │     unused — see PENDING_FROM_FRIEND.md)
+video ─> app/real/media_pipeline.py      ffmpeg -> faster-whisper -> pyannote diarization -> participant vs counsellor
+  │           │
+  │           ├─> app/real/text_features.py   ─> text model  (24 word habits + 3,072 sentence-meaning cols) ─┐
+  │           └─> app/real/audio_features.py  ─> audio model (pitch, loudness, participant-only timing)    ─┼─> fusion ─> prediction
+  └──────────────> app/real/openface_features.py ─> video model (OpenFace action units + gaze)              ─┘  [p_text, p_audio, p_video]
 ```
 
-**Status**: model loading, the full media pipeline (audio extraction,
-transcription, diarization, participant identification), and the
-fusion/response assembly are real and working. The two feature-extraction
-functions are stubs (`NotImplementedError`) pending the original research
-project's exact scripts — see `ml-service/PENDING_FROM_FRIEND.md` for the
-full checklist. Guessing those formulas was deliberately avoided: getting a
-sentence-embedding aggregation order wrong wouldn't error, it would silently
-mispredict.
+Each model is fed by column NAME from its own `cols` list
+(`app/real/feature_space.py`), and an upload is rejected unless every input it
+names is something this platform measures. The fusion model's input width
+decides whether video is used at all: two inputs are `[p_text, p_audio]`, three
+are `[p_text, p_audio, p_video]`.
+
+**Verified against the corpus, not assumed.** On the DAIC-WOZ transcripts, the
+website's text extractor reproduces the training features (the 24 lexical
+counts exactly; sentence vectors within 1e-3, the GPU's half precision), and
+its participant timing features match to 1e-13. On the official test split the
+text and audio models score AUC 0.7532 and 0.6017 — exactly the numbers the
+training run reported. The OpenFace video features follow the training script,
+with version differences listed at the top of `openface_features.py`.
 
 ### Enabling it
 
@@ -112,6 +115,16 @@ behavior is unchanged from the mock.
   it — either as a real env var or in `ml-service/.env` (gitignored; copy
   `.env.example` to start). This is the one manual step that can't be
   automated for you.
+- **OpenFace 2.2** — needed only while the serving video model reads OpenFace
+  features, as the DAIC-WOZ one does. Download `OpenFace_2.2.0_win_x64.zip`
+  (130 MB) from the [official releases](https://github.com/TadasBaltrusaitis/OpenFace/releases/tag/OpenFace_2.2.0)
+  and unzip it into `ml-service/tools/` (gitignored), so that
+  `ml-service/tools/OpenFace_2.2.0_win_x64/FeatureExtraction.exe` exists.
+  Nothing else to fetch: the CLNF landmark model it uses ships in the zip
+  (`download_models.ps1` is only for the CE-CLM model, which is not used).
+  Override the path with `OPENFACE_BIN`. Without it, sessions are refused with
+  a clear message while a three-input fusion model is active; a two-input one
+  needs no OpenFace.
 - **`WHISPER_MODEL_SIZE`** (default `small`): faster-whisper model size —
   larger is more accurate but slower; downloads automatically on first use.
 - Also pin `pydantic-core==2.46.4` alongside `pydantic` (already in

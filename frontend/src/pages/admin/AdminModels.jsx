@@ -13,25 +13,30 @@ const MODALITIES = [
   {
     value: "TEXT",
     label: "Text",
-    features: 3096,
-    blurb: "Reads what the participant said — lexical habits plus sentence meaning vectors.",
+    features: "3096",
+    blurb:
+      "Reads what the participant said — 24 word-habit counts plus 3,072 sentence-meaning " +
+      "columns. A linear text model is explained feature by feature in the report.",
   },
   {
     value: "AUDIO",
     label: "Audio",
-    features: 85,
-    blurb: "Reads how they said it — response latency, pauses, pitch and loudness variation.",
+    features: "85 or 64",
+    blurb:
+      "Reads how they said it — pitch, loudness and speaking rhythm. 85 is the original " +
+      "set; 64 is the DAIC-WOZ set with the interviewer-dependent timing removed.",
   },
   {
     value: "VIDEO",
     label: "Video",
-    features: 111,
+    features: "111 or 224",
     // A language scores without it; it only changes a prediction when the
     // active fusion model takes three inputs.
     optional: true,
     blurb:
-      "Reads facial movement — mouth, eye and brow geometry from MediaPipe Face Mesh. " +
-      "Optional: it only affects predictions when the active fusion model takes three inputs.",
+      "Reads the face. 111 is MediaPipe face geometry; 224 is OpenFace facial action " +
+      "units and gaze, which needs OpenFace installed on the analysis server. Optional: " +
+      "it only affects predictions when the active fusion model takes three inputs.",
   },
   {
     value: "FUSION",
@@ -337,8 +342,15 @@ export default function AdminModels() {
         />
         <p className="hint">
           Must be a joblib dict containing <code>model</code> and <code>threshold</code>,
-          with an input width of {selected.features}. Anything else is rejected —
-          a mis-shaped model would still return a number, just a meaningless one.
+          with an input width of {selected.features}.
+          {selected.value !== "FUSION" && (
+            <>
+              {" "}Every input named in its <code>cols</code> list must be a feature this
+              platform measures — checked by name, not just by count.
+            </>
+          )}{" "}
+          Anything else is rejected — a mis-shaped model would still return a number,
+          just a meaningless one.
         </p>
 
         <label className="field-label" htmlFor="versionLabel">Version label</label>

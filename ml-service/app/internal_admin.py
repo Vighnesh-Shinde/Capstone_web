@@ -83,15 +83,16 @@ def validate_model(
     """
     _require_token(x_ml_admin_token)
 
-    from app.real.model_loader import EXPECTED_FEATURE_COUNTS, FUSION_INPUT_WIDTHS, inspect_bundle
+    from app.real.feature_space import model_columns
+    from app.real.model_loader import FUSION_INPUT_WIDTHS, UPLOADABLE_MODALITIES, inspect_bundle
 
     modality = request.modality.lower()
-    expected = EXPECTED_FEATURE_COUNTS.get(modality)
-    if expected is None:
+    expected = None
+    if modality not in UPLOADABLE_MODALITIES:
         return ValidateModelResponse(
             ok=False,
             error=f"Unknown modality '{request.modality}'. Expected one of: "
-                  f"{', '.join(EXPECTED_FEATURE_COUNTS)}.",
+                  f"{', '.join(UPLOADABLE_MODALITIES)}.",
         )
 
     path = Path(request.path)
@@ -130,12 +131,17 @@ def validate_model(
                       f"[p_text, p_audio, p_video], in that order. This one takes {actual}.",
             )
 
-    if actual != expected:
-        return ValidateModelResponse(
-            ok=False, expected_feature_count=expected, **_carry(info),
-            error=f"This model expects {actual} features, but the {modality} stage supplies "
-                  f"{expected}. Activating it would produce meaningless predictions.",
-        )
+    else:
+        # Checked by column NAME, not width: every input the model names must be
+        # something this platform measures. Width alone cannot tell two
+        # different 224-column feature sets apart. See feature_space.py.
+        try:
+            expected = len(model_columns(modality, info["cols"], actual))
+        except ValueError as e:
+            return ValidateModelResponse(
+                ok=False, expected_feature_count=expected, **_carry(info),
+                error=f"{e} Activating it would produce meaningless predictions.",
+            )
 
     if info["threshold"] is None:
         return ValidateModelResponse(

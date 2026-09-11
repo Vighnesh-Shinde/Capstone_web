@@ -62,20 +62,17 @@ DEFAULT_FILENAMES = {
 
 DEFAULT_LANGUAGE = "en"
 
-# What each modality's feature vector must be. A model whose input width
-# doesn't match would still load and still return a probability — it would just
-# be a meaningless one. Checked at upload time so that never reaches production.
-EXPECTED_FEATURE_COUNTS = {
-    "text": 3096,
-    "audio": 85,
-    "fusion": 2,
-    # The width of app/real/video_features.py's output (MediaPipe face
-    # geometry). Optional, and deliberately NOT in DEFAULT_FILENAMES: no video
-    # model ships with the project, and a language must stay scorable without
-    # one. It only enters the prediction when the fusion model takes three
-    # inputs — see FUSION_INPUT_WIDTHS.
-    "video": 111,
-}
+# Stages an admin can upload. Text, audio and video models are validated by the
+# NAMES of their input columns against what this platform measures — see
+# feature_space.py — which is what allows more than one feature set per
+# modality (audio: the original 85 or DAIC-WOZ "clean-64"; video: MediaPipe
+# geometry or OpenFace action units) while still rejecting any model whose
+# inputs cannot be supplied. A width check alone passed a model that would
+# have been fed the wrong numbers, as long as there were the right number of them.
+#
+# Video is deliberately NOT in DEFAULT_FILENAMES: no video model ships with the
+# project, and a language must stay scorable without one.
+UPLOADABLE_MODALITIES = ("text", "audio", "video", "fusion")
 
 # The fusion model's own input width decides which modalities it combines, and
 # in what order. Nothing else selects the path: uploading a video model changes
@@ -216,6 +213,7 @@ def inspect_bundle(path: Path) -> dict:
         "threshold": bundle.get("threshold"),
         "has_cols": "cols" in bundle,
         "n_cols": len(bundle["cols"]) if bundle.get("cols") else None,
+        "cols": list(bundle["cols"]) if bundle.get("cols") else None,
         "class_names": bundle.get("class_names"),
         "model_repr": repr(model)[:2000],
     }

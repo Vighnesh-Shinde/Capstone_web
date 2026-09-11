@@ -3,17 +3,13 @@ Real inference orchestrator — the real-model counterpart to
 app/mock_inference.py, producing the exact same ProcessResponse shape so the
 backend/frontend contract never has to change.
 
-    video -> media_pipeline.process_video()          (real, built now)
-          -> text_features.compute_text_features()   (STUB — raises NotImplementedError)
-          -> audio_features.compute_audio_features()  (STUB — raises NotImplementedError)
-          -> model1.predict_proba, model2.predict_proba
-          -> fusion.predict_proba([p_text, p_audio])
+    video -> media_pipeline.process_video()            speech -> diarised transcript
+          -> text_features / audio_features            named features
+          -> openface_features (only if the serving    started first, in parallel
+             video model reads OpenFace features)
+          -> each model, fed its own columns           see feature_space.py
+          -> fusion.predict_proba([p_text, p_audio(, p_video)])
           -> threshold -> ProcessResponse
-
-Until the two feature stubs are filled in (see PENDING_FROM_FRIEND.md), this
-raises NotImplementedError, which main.py maps to a clean 503 — the Spring
-Boot backend already treats any ML-service error as session status FAILED,
-so this degrades gracefully with zero backend changes.
 """
 
 import logging
@@ -21,11 +17,12 @@ import logging
 import numpy as np
 
 from app.languages import DEFAULT_LANGUAGE, LanguageNotScorable
-from app.real import media_pipeline
+from app.real import media_pipeline, openface_features
 from app.real.adequacy import check_length
-from app.real.audio_features import compute_audio_features
+from app.real.audio_features import compute_audio_feature_map, legacy_audio_vector
 from app.real.daic_transcript import build_participant_transcript, build_transcript
-from app.real.model_loader import Models, fusion_input_modalities, scoring_languages
+from app.real.feature_space import TEXT_COLS, extractor_for, model_columns, select
+from app.real.model_loader import Models, feature_count, fusion_input_modalities, scoring_languages
 from app.real.text_features import compute_text_features
 from app.schemas import ExplanationItem, ProcessResponse
 
@@ -37,46 +34,106 @@ def _predict_proba(bundle, features: np.ndarray) -> float:
     return float(bundle.model.predict_proba(x)[0, 1])
 
 
-def _explain_linear_pipeline(bundle, raw_features: np.ndarray, modality: str, top_k: int = 6) -> list[ExplanationItem]:
-    """
-    Real, non-fabricated per-feature contributions for a scikit-learn Pipeline
-    shaped [imputer, StandardScaler, SelectKBest, linear classifier] (this is
-    exactly the audio model's shape). Each selected feature's contribution to
-    the logit is coefficient * standardized_value — the standard, honest way
-    to attribute a linear model's prediction to its inputs.
+def _has_standard_steps(bundle) -> bool:
+    steps = getattr(bundle.model, "named_steps", {})
+    return all(s in steps for s in ("imp", "sc", "sel", "clf"))
 
-    Not used for the text model: an RBF-kernel SVM has no linear
-    coefficients, so there is no equally honest per-feature attribution to
-    compute — see text_features.py's docstring.
+
+def _is_linear_pipeline(bundle) -> bool:
+    return _has_standard_steps(bundle) and hasattr(bundle.model.named_steps["clf"], "coef_")
+
+
+def _log_distance_from_training(bundle, features: np.ndarray, modality: str, session_id: str) -> None:
+    """
+    Warn when a session's features sit far outside the model's training data.
+
+    Every model here learned from DAIC-WOZ interviews, and a recording can
+    differ from those in ways that have nothing to do with the participant: a
+    different camera, microphone, tracker version or interview length. Such a
+    model still returns a confident probability — this project has already
+    shipped one bug that way, where short recordings pinned the text model to
+    a constant. This does not change the result; it makes the mismatch visible
+    in the log, measured against the model's own fitted scaler.
+    """
+    if not _has_standard_steps(bundle):
+        return
+    steps = bundle.model.named_steps
+    z = steps["sc"].transform(steps["imp"].transform(np.asarray(features, float).reshape(1, -1)))[0]
+    z = z[steps["sel"].get_support()]
+    far = int((np.abs(z) > 4).sum())
+    if far:
+        logger.warning(
+            "Session %s: %d of the %d %s features the model uses are more than 4 SD from its "
+            "training data (largest |z| %.1f). This recording is outside the range the %s "
+            "model learned from, so its probability should be read with caution.",
+            session_id, far, len(z), modality, float(np.abs(z).max()), modality)
+
+
+def _linear_contributions(bundle, features: np.ndarray, cols: list[str]):
+    """
+    (name, contribution, standardised value) for every feature a pipeline
+    shaped [imputer, StandardScaler, SelectKBest, linear classifier] selected.
+
+    Each contribution is coefficient × standardised value: that feature's exact
+    share of the model's log-odds. Real, not fabricated — and only possible
+    because the model is linear.
     """
     pipeline = bundle.model
-    imputer = pipeline.named_steps["imp"]
-    scaler = pipeline.named_steps["sc"]
-    selector = pipeline.named_steps["sel"]
-    clf = pipeline.named_steps["clf"]
+    imputed = pipeline.named_steps["imp"].transform(np.asarray(features, float).reshape(1, -1))
+    scaled = pipeline.named_steps["sc"].transform(imputed)[0]
+    mask = pipeline.named_steps["sel"].get_support()
+    names = [c for c, keep in zip(cols, mask) if keep]
+    values = scaled[mask]
+    contributions = pipeline.named_steps["clf"].coef_[0] * values
+    return list(zip(names, contributions, values))
 
-    imputed = imputer.transform(raw_features.reshape(1, -1))
-    scaled = scaler.transform(imputed)[0]
-    selected_mask = selector.get_support()
-    selected_values = scaled[selected_mask]
-    selected_names = [c for c, keep in zip(bundle.cols, selected_mask) if keep]
-    coefficients = clf.coef_[0]
 
-    contributions = coefficients * selected_values
-    order = np.argsort(-np.abs(contributions))[:top_k]
+def _item(name: str, contribution: float, value: float, modality: str) -> ExplanationItem:
+    label = name.replace("_", " ")
+    direction = "above" if value > 0 else "below"
+    return ExplanationItem(
+        feature_name=label,
+        contribution_score=round(float(contribution), 4),
+        description=f"{label} was {direction} average for this session",
+        modality=modality,
+    )
 
-    items = []
-    for i in order:
-        name = selected_names[i]
-        score = float(contributions[i])
-        direction = "above" if selected_values[i] > 0 else "below"
+
+def _explain_linear_pipeline(bundle, features: np.ndarray, cols: list[str], modality: str,
+                             top_k: int = 6) -> list[ExplanationItem]:
+    parts = sorted(_linear_contributions(bundle, features, cols), key=lambda p: -abs(p[1]))
+    return [_item(n, c, v, modality) for n, c, v in parts[:top_k]]
+
+
+def _explain_text(bundle, features: np.ndarray, cols: list[str], top_k: int = 3) -> list[ExplanationItem]:
+    """
+    Per-feature reasons for a LINEAR text model. The DAIC-WOZ model is one; the
+    RBF model it replaces had no coefficients, which is why reports used to
+    explain audio but not text.
+
+    The inputs come in two kinds. The 24 lexical features are habits a person
+    can recognise — "used more negative words than positive ones" — and each is
+    reported on its own. The 3,072 sentence-meaning columns are coordinates in
+    an embedding space: no single one means anything, and "mpnet 567 was above
+    average" would be a reason nobody can read. Their contributions are summed
+    into one "what was said, overall" item. For a linear model that sum is
+    exact, not an approximation — the log-odds is a sum.
+    """
+    parts = _linear_contributions(bundle, features, cols)
+    lexical = sorted((p for p in parts if p[0].startswith("lex_")), key=lambda p: -abs(p[1]))
+    meaning = sum(c for n, c, _ in parts if n.startswith("mpnet_"))
+
+    items = [_item(n, c, v, "text") for n, c, v in lexical[:top_k]]
+    if any(n.startswith("mpnet_") for n, _, _ in parts):
+        closer_to = "depressed participants" if meaning > 0 else "participants who were not depressed"
         items.append(ExplanationItem(
-            feature_name=name.replace("_", " "),
-            contribution_score=round(score, 4),
-            description=f"{name.replace('_', ' ')} was {direction} average for this session",
-            modality=modality,
+            feature_name="sentence meaning",
+            contribution_score=round(float(meaning), 4),
+            description=f"what was said, taken as a whole, was closer in meaning to {closer_to} "
+                        f"in the training interviews",
+            modality="text",
         ))
-    return items
+    return sorted(items, key=lambda i: -abs(i.contribution_score))
 
 
 class VideoUnavailable(Exception):
@@ -112,6 +169,28 @@ def run_real_inference(
     if language not in scoring_languages():
         raise LanguageNotScorable(language)
 
+    # Which models serve decides which extractors this session needs, so it is
+    # settled before the recording is touched.
+    text_bundle = Models.text(language)
+    audio_bundle = Models.audio(language)
+    fusion_bundle = Models.fusion(language)
+    text_cols = model_columns("text", text_bundle.cols, feature_count(text_bundle.model))
+    audio_cols = model_columns("audio", audio_bundle.cols, feature_count(audio_bundle.model))
+
+    # The fusion model's input width decides the path: two inputs is
+    # [text, audio], three is [text, audio, video]. Order is part of the
+    # contract — see FUSION_INPUT_WIDTHS in model_loader.
+    fusion_inputs = fusion_input_modalities(fusion_bundle)
+    video_bundle = video_cols = video_extractor = None
+    if "video" in fusion_inputs:
+        video_bundle = Models.video(language)
+        video_cols = model_columns("video", video_bundle.cols, feature_count(video_bundle.model))
+        video_extractor = extractor_for("video", video_cols)
+
+    # OpenFace is a separate process, so it starts now and runs while speech is
+    # transcribed, instead of adding its whole running time afterwards.
+    openface_job = openface_features.start(video_path) if video_extractor == "openface" else None
+
     transcript = media_pipeline.process_video(
         video_path,
         language=language,
@@ -119,10 +198,6 @@ def run_real_inference(
         companion_embeddings=companion_embeddings,
     )
     try:
-        text_bundle = Models.text(language)
-        audio_bundle = Models.audio(language)
-        fusion_bundle = Models.fusion(language)
-
         text_raw = compute_text_features(transcript.participant_segments)
 
         # Checked before anything is predicted. An interview shorter than the
@@ -131,40 +206,54 @@ def run_real_inference(
         # such session reports "depressed" with a plausible confidence. See
         # adequacy.py for the measurements behind this.
         check_length(text_raw)
-        audio_raw = compute_audio_features(transcript.wav_path, transcript)
+        audio_map = compute_audio_feature_map(transcript.wav_path, transcript)
+        audio_raw = legacy_audio_vector(audio_map)
 
-        # Extracted here rather than in a later pass, because the recording is
-        # deleted once its derived data is stored. Anything not taken now is
-        # gone for good.
-        #
-        # A failure is recorded here rather than raised: with a two-input
-        # fusion model video is not in the prediction, and a participant who
-        # sat off camera should still get their report. Only a three-input
-        # fusion turns a missing face into a refusal, below.
+        # MediaPipe geometry is what the session record stores, whichever
+        # model serves. Extracted here rather than in a later pass, because the
+        # recording is deleted once its derived data is stored; anything not
+        # taken now is gone for good. A failure is recorded, not raised: a
+        # participant who sat off camera should still get their report unless
+        # the serving fusion model actually needs their face.
         video_features = None
         video_features_error = None
         try:
-            from app.real.video_features import VideoFeatureError, compute_video_features
+            from app.real.video_features import compute_video_features
             video_features = [float(v) for v in compute_video_features(video_path)]
         except Exception as e:
             video_features_error = str(e)
             logger.warning("Video features unavailable for session %s: %s", session_id, e)
 
+        # Each model is fed its own columns, by name.
+        x_text = select(dict(zip(TEXT_COLS, text_raw)), text_cols)
+        x_audio = select(audio_map, audio_cols)
         probabilities = {
-            "text": _predict_proba(text_bundle, text_raw),
-            "audio": _predict_proba(audio_bundle, audio_raw),
+            "text": _predict_proba(text_bundle, x_text),
+            "audio": _predict_proba(audio_bundle, x_audio),
         }
 
-        # The fusion model's input width decides the path: two inputs is
-        # [text, audio], three is [text, audio, video]. Order is part of the
-        # contract — see FUSION_INPUT_WIDTHS in model_loader.
-        fusion_inputs = fusion_input_modalities(fusion_bundle)
-        video_bundle = None
-        if "video" in fusion_inputs:
-            if video_features is None:
-                raise VideoUnavailable(video_features_error)
-            video_bundle = Models.video(language)
-            probabilities["video"] = _predict_proba(video_bundle, np.asarray(video_features))
+        x_video = None
+        if video_bundle is not None:
+            if video_extractor == "openface":
+                try:
+                    video_map = openface_job.result()
+                except openface_features.OpenFaceError as e:
+                    raise VideoUnavailable(str(e)) from e
+                except Exception as e:
+                    logger.exception("OpenFace failed for session %s", session_id)
+                    raise VideoUnavailable("facial analysis failed") from e
+            else:
+                if video_features is None:
+                    raise VideoUnavailable(video_features_error)
+                from app.real.video_features import VIDEO_COLS
+                video_map = dict(zip(VIDEO_COLS, video_features))
+            x_video = select(video_map, video_cols)
+            probabilities["video"] = _predict_proba(video_bundle, x_video)
+
+        for bundle, x, modality in ((text_bundle, x_text, "text"), (audio_bundle, x_audio, "audio"),
+                                    (video_bundle, x_video, "video")):
+            if bundle is not None:
+                _log_distance_from_training(bundle, x, modality, session_id)
 
         p_final = _predict_proba(
             fusion_bundle, np.array([probabilities[m] for m in fusion_inputs]))
@@ -180,19 +269,28 @@ def run_real_inference(
         modality_contributions = {
             m: round(pulls.get(m, 0.0) / total_pull, 4) for m in ("text", "audio", "video")
         }
+        logger.info("Session %s: p=%s fused=%.4f threshold=%.4f -> %s", session_id,
+                    {m: round(p, 4) for m, p in probabilities.items()}, p_final,
+                    fusion_bundle.threshold, prediction)
 
-        explanation = _explain_linear_pipeline(audio_bundle, audio_raw, modality="audio")
-        if video_bundle is not None:
-            # Best effort: only a linear video pipeline of the standard shape
-            # can be attributed feature by feature. A missing explanation is
-            # better than a failed report.
+        # Only a linear pipeline of the standard shape can be attributed feature
+        # by feature. A missing explanation is better than a failed report.
+        explanation: list[ExplanationItem] = []
+        for bundle, x, cols, modality, explain in (
+            (text_bundle, x_text, text_cols, "text", _explain_text),
+            (audio_bundle, x_audio, audio_cols, "audio", _explain_linear_pipeline),
+            (video_bundle, x_video, video_cols, "video", _explain_linear_pipeline),
+        ):
+            if bundle is None or not _is_linear_pipeline(bundle):
+                continue
             try:
-                explanation += _explain_linear_pipeline(
-                    video_bundle, np.asarray(video_features), modality="video", top_k=4)
+                if modality == "text":
+                    explanation += explain(bundle, x, cols)
+                else:
+                    explanation += explain(bundle, x, cols, modality=modality,
+                                           top_k=6 if modality == "audio" else 4)
             except Exception as e:
-                logger.warning("No per-feature explanation for the video model: %s", e)
-        # Text model (RBF-SVM) intentionally has no per-feature explanation —
-        # see _explain_linear_pipeline's docstring.
+                logger.warning("No per-feature explanation for the %s model: %s", modality, e)
 
         return ProcessResponse(
             prediction=prediction,

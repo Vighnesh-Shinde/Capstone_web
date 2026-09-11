@@ -65,8 +65,8 @@ You have two legitimate options. Choose deliberately and tell me which:
    output on DAIC-WOZ. Feature counts must come out at text 3096, audio 85.
 2. **Design better features.** Allowed and possibly correct — but then you must
    also deliver the rewritten `text_features.py` / `audio_features.py` so
-   extraction and model ship as a matched pair, plus the new feature counts so
-   `EXPECTED_FEATURE_COUNTS` in `ml-service/app/real/model_loader.py` can be
+   extraction and model ship as a matched pair, plus the new column names so
+   the extractors listed in `ml-service/app/real/feature_space.py` can be
    updated in lockstep.
 
 Whichever you choose, non-negotiable:
@@ -116,9 +116,12 @@ Each model must be a `joblib` dict with exactly these keys:
 }
 ```
 
-The platform validates uploads against `EXPECTED_FEATURE_COUNTS` in
-`ml-service/app/real/model_loader.py` and rejects anything whose input width is
-wrong. Current values: **text 3096, audio 85, video 111, and fusion 2 or 3.**
+The platform validates uploads by the NAMES in `cols`
+(`ml-service/app/real/feature_space.py`) and rejects any model naming an input
+it does not measure. Accepted today: **text 3096** (24 lexical + 3072 mpnet),
+**audio 85 or 64** (the original set, or the participant-only "clean-64"),
+**video 111 or 224** (MediaPipe geometry, or OpenFace action units + gaze), and
+**fusion 2 or 3**.
 
 The fusion model's input width decides which modalities it combines:
 
