@@ -584,3 +584,4 @@ depression-detection-platform/
 - Audit logging is explicit `AuditLogService.log(...)` calls at each sensitive
   action site (application approve/reject/suspend, session create, judgment
   submit, dataset view/approve/reject) — viewable via `/api/admin/audit-logs`.
+"# Capstone_web" 
