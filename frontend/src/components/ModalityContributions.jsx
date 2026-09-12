@@ -34,16 +34,25 @@ const MODALITIES = {
   },
 };
 
+/** A probability as a percentage with one decimal: 29.9% and 30.1% must not both read "30%". */
+function pct1(value) {
+  return `${(value * 100).toFixed(1)}%`;
+}
+
 /**
  * How much each modality pulled the final score.
  *
  * A modality contributing exactly nothing is shown as deliberately switched
- * off rather than as a 0% bar. The video model is permanently in that state:
- * it works on its own but measurably made the fused result worse, so it is not
- * in the prediction path. A silent 0% would read as "the video analysis found
- * nothing", which is a different and untrue claim.
+ * off rather than as a 0% bar: a silent 0% would read as "the video analysis
+ * found nothing", which is a different and untrue claim.
+ *
+ * When the report carries its scoring details, each card also says what that
+ * modality concluded on its own — its score against its own cut-off. That is
+ * what explains a mixed result: in a real report the text model was just
+ * below its cut-off, the video model far below, and the verdict "Depressed"
+ * came from the audio model alone. The shares cannot show that.
  */
-export default function ModalityContributions({ modalityContributions }) {
+export default function ModalityContributions({ modalityContributions, details }) {
   if (!modalityContributions) return null;
 
   const entries = ["text", "audio", "video"]
@@ -58,6 +67,9 @@ export default function ModalityContributions({ modalityContributions }) {
         const pct = Math.round(value * 100);
         const meta = MODALITIES[key] ?? { label: key, blurb: "" };
         const unused = pct === 0;
+        const own = details?.modality_probabilities?.[key];
+        const cut = details?.modality_thresholds?.[key];
+        const weight = details?.fusion_weights?.[key];
 
         return (
           <div className={unused ? "modality-card unused" : "modality-card"} key={key}>
@@ -70,6 +82,18 @@ export default function ModalityContributions({ modalityContributions }) {
             {!unused && (
               <span className="modality-track" aria-hidden="true">
                 <span className={`modality-fill m-${key}`} style={{ width: `${pct}%` }} />
+              </span>
+            )}
+            {typeof own === "number" && typeof cut === "number" && (
+              <span className="modality-detail">
+                On its own: {pct1(own)} (cut-off {pct1(cut)}) —{" "}
+                <strong>{own >= cut ? "depression pattern" : "no depression pattern"}</strong>
+                {typeof weight === "number" && weight < 0 && (
+                  <>
+                    . The final model gives this part a negative weight: in testing it
+                    did not improve predictions, so it counts for little.
+                  </>
+                )}
               </span>
             )}
           </div>

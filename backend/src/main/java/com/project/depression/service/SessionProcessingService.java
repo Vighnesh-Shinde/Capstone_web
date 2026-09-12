@@ -123,6 +123,7 @@ public class SessionProcessingService {
                     .audioContribution(modalityContributions == null ? null : modalityContributions.get("audio"))
                     .textContribution(modalityContributions == null ? null : modalityContributions.get("text"))
                     .videoContribution(modalityContributions == null ? null : modalityContributions.get("video"))
+                    .scoringDetails(mlResponse.scoring_details())
                     .build();
 
             List<ExplanationFactor> factors = mlResponse.explanation().stream()

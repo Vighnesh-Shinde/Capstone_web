@@ -1,0 +1,12 @@
+-- How a report's verdict was reached: the fusion cut-off, each modality's own
+-- probability and cut-off, the fusion weights, and warnings where the recording
+-- sat far outside the models' training data.
+--
+-- Added because a score cannot be read without its cut-off. The DAIC-WOZ fusion
+-- model flags a session at about 29%, so "Depressed, 35%" is correct — but read
+-- as a confidence, 35% looks like "not depressed".
+--
+-- JSONB because its shape follows whichever models are serving. Null for
+-- reports created before this column existed; the report page falls back to
+-- showing the score alone.
+ALTER TABLE reports ADD COLUMN scoring_details JSONB;

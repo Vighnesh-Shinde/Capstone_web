@@ -8,6 +8,9 @@ public record MlProcessResponse(
         Double confidence_score,
         List<MlExplanationItem> explanation,
         Map<String, Double> modality_contributions,
+        // Cut-off, per-modality scores and cut-offs, fusion weights and
+        // out-of-range warnings. Null on the mock pipeline.
+        Map<String, Object> scoring_details,
         // Null on the mock pipeline, which has no real features to report.
         List<Double> text_features,
         List<Double> audio_features,

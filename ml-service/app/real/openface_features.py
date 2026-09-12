@@ -24,8 +24,21 @@ WHAT DOES NOT MATCH EXACTLY — stated so nobody assumes otherwise
    would otherwise be inflated by three muscles the model never saw.
 3. Head-frame gaze. The corpus has gaze in camera coordinates (x_0 .. z_1) and
    in head coordinates (x_h0 .. z_h1). 2.2 writes only the first. The second is
-   derived here by rotating it into the head's frame with the head pose
-   OpenFace reports, R(pose)^T · g, using OpenFace's own Euler convention.
+   derived here from the head pose OpenFace reports, as R(pose) · g with
+   OpenFace's Euler convention R = Rx · Ry · Rz.
+
+   Verified on the corpus itself, which ships camera-frame gaze, head-frame
+   gaze AND head pose: across all 188 participants, R · g reproduces the
+   native head-frame columns to a mean error of 0.011 (max 0.26); the
+   transpose, R^T · g, is off by 0.23 (max 1.98). A sweep over Euler orders,
+   transpose and angle sign found no better convention. It is still not exact
+   (a residual of ~0.01 remains), so CLNF's internal gaze transform differs
+   slightly from this one.
+
+   One assumption remains: that OpenFace 2.2 reports head pose in the same
+   convention as the CLNF build that produced the corpus. Both come from the
+   same author and document the same R = Rx · Ry · Rz, but the corpus test
+   above could only check CLNF's numbers, not 2.2's.
 4. Frame rate. The movement features are frame-to-frame differences, so they
    scale with frame rate. DAIC-WOZ video is 30 fps, so every recording is
    resampled to 30 fps first; otherwise a 60 fps phone video would halve every
@@ -151,7 +164,12 @@ def _corpus_gaze(frames) -> dict[str, np.ndarray]:
                            frames["pose_Rz"].to_numpy(float))
     for eye in (0, 1):
         g = frames[[f"gaze_{eye}_x", f"gaze_{eye}_y", f"gaze_{eye}_z"]].to_numpy(float)
-        head = np.einsum("nji,nj->ni", R, g)          # R^T · g, per frame
+        # R · g, per frame. NOT R^T · g, which is what the rotation algebra
+        # suggests and what this line first did: tested against the corpus's
+        # own head-frame columns across all 188 participants, R^T · g was off by
+        # 0.23 on average (max 1.98); R · g by 0.011 (max 0.26). See point 3 of
+        # the module docstring.
+        head = np.einsum("nij,nj->ni", R, g)
         for axis, i in (("x", 0), ("y", 1), ("z", 2)):
             out[f"{axis}_{eye}"] = g[:, i]
             out[f"{axis}_h{eye}"] = head[:, i]

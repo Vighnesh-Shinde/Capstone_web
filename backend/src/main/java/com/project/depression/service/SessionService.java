@@ -283,7 +283,8 @@ public class SessionService {
 
         return new ReportResponse(
                 sessionId, report.getPrediction().name(), report.getConfidenceScore(),
-                modalityContributions, factors, judgment, report.getCreatedAt());
+                modalityContributions, factors, judgment, report.getCreatedAt(),
+                report.getScoringDetails());
     }
 
     private Session getOwnedSession(String counselorEmail, UUID sessionId) {

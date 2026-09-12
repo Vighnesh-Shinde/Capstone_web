@@ -11,6 +11,9 @@ import ConsentRecord from "../components/ConsentRecord";
 import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
 import SessionNotes from "../components/SessionNotes";
 import { LoadingState } from "../components/states";
+import { plainLabel } from "../lib/featureGlossary";
+
+const MODALITY_NAMES = { text: "What was said", audio: "How it was said", video: "Facial movement" };
 
 export default function Report() {
   const { id } = useParams();
@@ -49,6 +52,11 @@ export default function Report() {
 
   const maxAbsScore =
     report?.explanationFactors.reduce((max, f) => Math.max(max, Math.abs(f.contributionScore)), 0) ?? 0;
+  // Null on reports created before the scoring details were stored; every use
+  // below falls back to what those reports always showed.
+  const details = report?.scoringDetails;
+  const cutOff = typeof details?.decision_threshold === "number" ? details.decision_threshold : null;
+  const warnings = details?.distribution_warnings ?? [];
 
   return (
     <div className="page">
@@ -97,25 +105,56 @@ export default function Report() {
               <ConfidenceRing
                 value={report.confidenceScore}
                 prediction={report.prediction}
+                threshold={cutOff}
               />
             </div>
 
             <div className="alert alert-warning report-disclaimer">
-              This is an AI screening-support indicator, not a diagnosis. It is
-              wrong in roughly 1 of every 4 cases, and it does not measure
-              severity — a higher percentage means the model is more confident,
-              not that the person is more unwell. A qualified clinician should
-              review this alongside their own professional judgment.
+              This is an AI screening-support indicator, not a diagnosis. In testing
+              it was wrong about 3 times in every 10. The percentage is the
+              model&apos;s depression score — not a severity, and not how sure it is.{" "}
+              {cutOff !== null
+                ? `The model flags a session as depressed when the score reaches ${Math.round(cutOff * 100)}%. That cut-off was set during training and is below 50% because only about 3 in 10 people in the training interviews were depressed.`
+                : "The model flags a session as depressed when the score reaches its cut-off, which can be well below 50%."}{" "}
+              A qualified clinician should review this alongside their own
+              professional judgment.
             </div>
           </div>
+
+          {/* Shown when a recording differs sharply from the training
+              interviews. The verdict is unchanged — this says which parts of it
+              rest on measurements the models never saw anything like. */}
+          {warnings.length > 0 && (
+            <div className="alert alert-warning">
+              <strong>Read parts of this result with caution.</strong> Some
+              measurements from this recording were far outside the range of the
+              interviews the models learned from, so the scores that depend on
+              them are less reliable:
+              <ul className="report-warning-list">
+                {warnings.map((w) => (
+                  <li key={w.modality}>
+                    <strong>{MODALITY_NAMES[w.modality] ?? w.modality}</strong>: {w.far} of the{" "}
+                    {w.total} measurements it relies on, most of all &ldquo;
+                    {plainLabel(w.worst_feature)}&rdquo;.
+                  </li>
+                ))}
+              </ul>
+              Differences in microphone, camera, lighting or interview length can
+              cause this, as well as the person themselves.
+            </div>
+          )}
 
           <div className="card">
             <h2>Modality contributions</h2>
             <p className="muted">
               How strongly each modality (audio, text, video) contributed to the
-              fused prediction.
+              fused prediction
+              {details ? ", and what each one concluded on its own." : "."}
             </p>
-            <ModalityContributions modalityContributions={report.modalityContributions} />
+            <ModalityContributions
+              modalityContributions={report.modalityContributions}
+              details={details}
+            />
           </div>
 
           <div className="card">
@@ -123,6 +162,9 @@ export default function Report() {
             <p className="muted">
               What the model measured in the participant&apos;s speech, strongest first.
               Each one says what was observed and which way it pushed the result.
+              Weights compare measurements within each part&apos;s own model; how much
+              each part counts in the final result is shown under Modality
+              contributions.
             </p>
             <div className="factor-list">
               {report.explanationFactors.map((factor) => (

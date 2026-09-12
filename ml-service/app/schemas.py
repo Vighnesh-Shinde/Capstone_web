@@ -1,4 +1,4 @@
-from typing import Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -37,6 +37,13 @@ class ProcessResponse(BaseModel):
     explanation: List[ExplanationItem]
     # Coarse per-modality contribution to the fused prediction (roughly sums to 1.0).
     modality_contributions: Dict[str, float]
+
+    # How the verdict was reached: the fusion cut-off, each modality's own
+    # probability and cut-off, the fusion weights, and warnings where the
+    # recording sat far outside the training data. Stored with the report so a
+    # reader can see why a 35% score is "depressed" when the cut-off is 29%.
+    # Optional: the mock pipeline has no models to describe.
+    scoring_details: Optional[Dict[str, Any]] = None
 
     # The exact vectors the models consumed, returned so the backend can store
     # them. That is what lets a future training set be built from real sessions

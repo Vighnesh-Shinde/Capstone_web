@@ -43,7 +43,8 @@ def _is_linear_pipeline(bundle) -> bool:
     return _has_standard_steps(bundle) and hasattr(bundle.model.named_steps["clf"], "coef_")
 
 
-def _log_distance_from_training(bundle, features: np.ndarray, modality: str, session_id: str) -> None:
+def _distance_from_training(bundle, features: np.ndarray, cols: list[str], modality: str,
+                            session_id: str) -> dict | None:
     """
     Warn when a session's features sit far outside the model's training data.
 
@@ -53,13 +54,15 @@ def _log_distance_from_training(bundle, features: np.ndarray, modality: str, ses
     model still returns a confident probability — this project has already
     shipped one bug that way, where short recordings pinned the text model to
     a constant. This does not change the result; it makes the mismatch visible
-    in the log, measured against the model's own fitted scaler.
+    in the log and on the report, measured against the model's own fitted scaler.
     """
     if not _has_standard_steps(bundle):
-        return
+        return None
     steps = bundle.model.named_steps
     z = steps["sc"].transform(steps["imp"].transform(np.asarray(features, float).reshape(1, -1)))[0]
-    z = z[steps["sel"].get_support()]
+    mask = steps["sel"].get_support()
+    z = z[mask]
+    names = [c for c, keep in zip(cols, mask) if keep]
     far = int((np.abs(z) > 4).sum())
     if far:
         logger.warning(
@@ -67,6 +70,16 @@ def _log_distance_from_training(bundle, features: np.ndarray, modality: str, ses
             "training data (largest |z| %.1f). This recording is outside the range the %s "
             "model learned from, so its probability should be read with caution.",
             session_id, far, len(z), modality, float(np.abs(z).max()), modality)
+        return {
+            "modality": modality,
+            "far": far,
+            "total": len(z),
+            "max_z": round(float(np.abs(z).max()), 1),
+            # The single most out-of-range measurement: something a reader can
+            # act on ("recording volume"), where a count alone is not.
+            "worst_feature": names[int(np.argmax(np.abs(z)))],
+        }
+    return None
 
 
 def _linear_contributions(bundle, features: np.ndarray, cols: list[str]):
@@ -250,10 +263,14 @@ def run_real_inference(
             x_video = select(video_map, video_cols)
             probabilities["video"] = _predict_proba(video_bundle, x_video)
 
-        for bundle, x, modality in ((text_bundle, x_text, "text"), (audio_bundle, x_audio, "audio"),
-                                    (video_bundle, x_video, "video")):
+        distribution_warnings = []
+        for bundle, x, cols, modality in ((text_bundle, x_text, text_cols, "text"),
+                                          (audio_bundle, x_audio, audio_cols, "audio"),
+                                          (video_bundle, x_video, video_cols, "video")):
             if bundle is not None:
-                _log_distance_from_training(bundle, x, modality, session_id)
+                warning = _distance_from_training(bundle, x, cols, modality, session_id)
+                if warning:
+                    distribution_warnings.append(warning)
 
         p_final = _predict_proba(
             fusion_bundle, np.array([probabilities[m] for m in fusion_inputs]))
@@ -268,6 +285,21 @@ def run_real_inference(
         total_pull = sum(pulls.values()) or 1.0
         modality_contributions = {
             m: round(pulls.get(m, 0.0) / total_pull, 4) for m in ("text", "audio", "video")
+        }
+
+        # How the verdict was reached, stored with the report. A model trained
+        # where depression is the minority class flags well below 50%, so without
+        # the cut-off a reader cannot tell that a 35% score is above it; and
+        # without each modality's own score and cut-off they cannot see which
+        # part of the recording drove the result. Descriptive only — nothing here
+        # feeds back into the prediction.
+        bundles = {"text": text_bundle, "audio": audio_bundle, "video": video_bundle}
+        scoring_details = {
+            "decision_threshold": round(float(fusion_bundle.threshold), 4),
+            "modality_probabilities": {m: round(p, 4) for m, p in probabilities.items()},
+            "modality_thresholds": {m: round(float(bundles[m].threshold), 4) for m in probabilities},
+            "fusion_weights": {m: round(float(fusion_coef[i]), 4) for i, m in enumerate(fusion_inputs)},
+            "distribution_warnings": distribution_warnings,
         }
         logger.info("Session %s: p=%s fused=%.4f threshold=%.4f -> %s", session_id,
                     {m: round(p, 4) for m, p in probabilities.items()}, p_final,
@@ -297,6 +329,7 @@ def run_real_inference(
             confidence_score=round(p_final, 4),
             explanation=explanation,
             modality_contributions=modality_contributions,
+            scoring_details=scoring_details,
             # Returned so the backend can persist them: these are exactly what
             # a retrained model would need as input, so storing them means a
             # training set can be assembled later without the original video.

@@ -6,9 +6,12 @@ import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Entity
@@ -43,6 +46,15 @@ public class Report {
 
     @Column(name = "video_contribution")
     private Double videoContribution;
+
+    /**
+     * How the verdict was reached — cut-off, per-modality scores and cut-offs,
+     * fusion weights, out-of-range warnings — as the ML service reported it.
+     * Null for reports created before V15 and for the mock pipeline.
+     */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "scoring_details", columnDefinition = "jsonb")
+    private Map<String, Object> scoringDetails;
 
     @Column(name = "created_at")
     private Instant createdAt;

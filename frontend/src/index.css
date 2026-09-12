@@ -1233,6 +1233,8 @@ code {
   font-size: 11px;
   font-weight: 500;
   letter-spacing: .06em;
+  line-height: 1.2;
+  text-align: center;
   text-transform: uppercase;
   color: var(--text-mute);
 }
@@ -1299,6 +1301,31 @@ code {
   font-size: 12.5px;
   color: var(--text-mute);
 }
+
+/* What one modality concluded on its own: its score against its own cut-off. */
+.modality-detail {
+  grid-column: 1 / -1;
+  margin-top: 6px;
+  font-size: 12.5px;
+  line-height: 1.4;
+  color: var(--text);
+}
+
+.ring-cutoff {
+  font-size: 11px;
+  color: var(--text-mute);
+  margin-top: 2px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* The cut-off tick across the ring's track. */
+.ring-threshold {
+  stroke: var(--text-h);
+  stroke-width: 3;
+  stroke-linecap: round;
+}
+
+.report-warning-list { margin: 6px 0; padding-left: 20px; }
 
 .modality-track {
   grid-area: bar;
