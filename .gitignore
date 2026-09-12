@@ -80,5 +80,6 @@ ml-service/models/active_manifest.json
 # through Admin -> Models, never by being committed.
 My_Work/
 EarlyFusion_Work/
+EarlyFusion_Work_V2/
 __pycache__/
 *.pyc

@@ -35,7 +35,8 @@ from app.real.feature_space import (
 from app.real.model_loader import (
     Models, early_fusion_installed, feature_count, fusion_input_modalities, scoring_languages,
 )
-from app.real.text_features import compute_text_features
+from app.real.openface_features import region_of
+from app.real.text_features import LEX_COLS, compute_text_features_detailed
 from app.schemas import ExplanationItem, ProcessResponse
 
 logger = logging.getLogger("ml-service")
@@ -78,8 +79,9 @@ def _linear_contributions(bundle, features: np.ndarray, cols: list[str]):
 
 def _early_fusion_blocks(bundle, features: np.ndarray, cols: list[str]):
     """
-    One tuple per modality block of an early-fusion pipeline:
-    (block name, its column names, standardised values, weight on each column).
+    One tuple per modality block of an early-fusion pipeline: (block name, its
+    column names, standardised values, weight on each column, the scaler's
+    per-column scale).
 
     The pipeline is [ColumnTransformer(per block: imputer -> scaler -> PCA) ->
     linear classifier]. Both stages are linear, so a component's coefficient
@@ -105,9 +107,13 @@ def _early_fusion_blocks(bundle, features: np.ndarray, cols: list[str]):
         steps = block.named_steps
         scaled = steps["sc"].transform(steps["imp"].transform(x[:, indices]))[0]
         pca = steps["pca"]
-        weights = coefficients[start:start + pca.n_components_] @ pca.components_
+        # The ColumnTransformer's own per-block weight is part of the effective
+        # coefficient. Leaving it out silently rescales every contribution and
+        # every modality share — v2 sets these (text 0.22, audio 0.63, video 0.32).
+        block_weight = float((transformer.transformer_weights or {}).get(name, 1.0))
+        weights = (coefficients[start:start + pca.n_components_] * block_weight) @ pca.components_
         start += pca.n_components_
-        yield name, [cols[i] for i in indices], scaled, weights
+        yield name, [cols[i] for i in indices], scaled, weights, steps["sc"].scale_
 
 
 def _distance_from_training(bundle, features: np.ndarray, cols: list[str], modality: str,
@@ -204,6 +210,92 @@ def _explain_text(bundle, features: np.ndarray, cols: list[str], top_k: int = 3)
     return sorted(items, key=lambda i: -abs(i.contribution_score))
 
 
+def _raw_text_weights(weights_by_column: dict[str, float]) -> np.ndarray:
+    """
+    A weight for every one of the 3,096 text columns, in TEXT_COLS order and in
+    the features' own units (not standardised ones), so it can be applied to the
+    unscaled sentence vectors. Columns a model does not use weigh nothing.
+    """
+    full = np.zeros(len(TEXT_COLS))
+    index = {c: i for i, c in enumerate(TEXT_COLS)}
+    for name, value in weights_by_column.items():
+        position = index.get(name)
+        if position is not None:
+            full[position] = value
+    return full
+
+
+def _linear_raw_weights(bundle, cols: list[str]) -> dict[str, float]:
+    """Raw-unit weight per column for an [imp, sc, sel, clf] pipeline."""
+    steps = bundle.model.named_steps
+    mask = steps["sel"].get_support()
+    names = [c for c, keep in zip(cols, mask) if keep]
+    scales = steps["sc"].scale_[mask]
+    return {n: float(c / s) for n, c, s in zip(names, steps["clf"].coef_[0], scales)}
+
+
+def _sentence_attributions(raw_weights: np.ndarray, sentences: list[str], vectors: np.ndarray,
+                           pooling_weights: np.ndarray, top_k: int = 5):
+    """
+    Split the sentence-meaning part of the score across the participant's own
+    sentences.
+
+    The text vector's second half is 3,072 pooled embedding columns —
+    [mean, length-weighted mean, max, std] of the per-sentence vectors — and
+    three of those four are linear in a single sentence, so each sentence's
+    share of them is exact:
+
+        mean           w · v_s / n
+        weighted mean  w · (weight_s · v_s)
+        max            each dimension belongs to the sentence that achieved it
+
+    The std block is NOT linear in one sentence. It is reported as an
+    unattributed remainder rather than spread around to make the totals add up.
+    """
+    if vectors.size == 0 or not sentences:
+        return [], 0.0
+
+    mpnet = raw_weights[len(LEX_COLS):]
+    width = vectors.shape[1]
+    w_mean = mpnet[:width]
+    w_weighted = mpnet[width:2 * width]
+    w_max = mpnet[2 * width:3 * width]
+    w_std = mpnet[3 * width:]
+
+    contributions = (vectors @ w_mean) / vectors.shape[0]
+    contributions += (vectors * pooling_weights[:, None]) @ w_weighted
+    for dimension, sentence in enumerate(vectors.argmax(axis=0)):
+        contributions[sentence] += w_max[dimension] * vectors[sentence, dimension]
+
+    remainder = float(w_std @ vectors.std(axis=0))
+    ranked = np.argsort(-np.abs(contributions))[:top_k]
+    return (
+        [{"text": sentences[i][:300], "contribution": round(float(contributions[i]), 4)}
+         for i in ranked],
+        round(remainder, 4),
+    )
+
+
+def _face_region_attributions(parts) -> list[dict]:
+    """
+    Video contributions grouped by the part of the face they measure, so the
+    report can shade a face diagram.
+
+    This is NOT Grad-CAM and must never be labelled as one: there is no
+    convolutional network here and no frame is kept. It is the model's own
+    contributions, summed over the measurements describing each region.
+    """
+    totals: dict[str, float] = {}
+    for name, contribution, _ in parts:
+        region = region_of(name)
+        totals[region] = totals.get(region, 0.0) + float(contribution)
+    scale = sum(abs(v) for v in totals.values()) or 1.0
+    return [
+        {"region": region, "contribution": round(value, 4), "share": round(abs(value) / scale, 4)}
+        for region, value in sorted(totals.items(), key=lambda kv: -abs(kv[1]))
+    ]
+
+
 class VideoUnavailable(Exception):
     """
     The serving model needs facial measurements and this recording has none —
@@ -282,7 +374,8 @@ def run_real_inference(
         companion_embeddings=companion_embeddings,
     )
     try:
-        text_raw = compute_text_features(transcript.participant_segments)
+        text_raw, sentences, sentence_vectors, pooling_weights = (
+            compute_text_features_detailed(transcript.participant_segments))
 
         # Checked before anything is predicted. An interview shorter than the
         # training range does not degrade the result gracefully — it pins the
@@ -349,11 +442,15 @@ def run_real_inference(
                 blocks = []
 
             by_modality: dict[str, list] = {m: [] for m in MODALITIES}
-            for name, names, scaled, weights in blocks:
+            text_weights = np.zeros(len(TEXT_COLS))
+            for name, names, scaled, weights, scales in blocks:
                 for column, value, weight in zip(names, scaled, weights):
                     modality = modality_of(column)
                     by_modality[modality].append((column, float(weight * value), float(value)))
                     pulls[modality] += abs(float(weight * value))
+                if names and modality_of(names[0]) == "text":
+                    text_weights = _raw_text_weights(
+                        dict(zip(names, np.asarray(weights) / np.asarray(scales))))
                 warning = _warning(scaled, names, modality_of(names[0]) if names else name, session_id)
                 if warning:
                     distribution_warnings.append(warning)
@@ -373,9 +470,14 @@ def run_real_inference(
             total_pull = sum(pulls.values()) or 1.0
             modality_contributions = {m: round(pulls[m] / total_pull, 4) for m in MODALITIES}
             probabilities = {}
+            top_sentences, meaning_remainder = _sentence_attributions(
+                text_weights, sentences, sentence_vectors, pooling_weights)
             scoring_details = {
                 "model_kind": "early_fusion",
                 "decision_threshold": round(float(threshold), 4),
+                "sentence_attributions": top_sentences,
+                "unattributed_meaning": meaning_remainder,
+                "face_regions": _face_region_attributions(by_modality["video"]),
                 # Said explicitly because the shares mean something different
                 # here: not "this modality's own verdict", but how much of the
                 # model's reasoning rested on that modality's measurements.
@@ -440,10 +542,29 @@ def run_real_inference(
                 except Exception as e:
                     logger.warning("No per-feature explanation for the %s model: %s", modality, e)
 
+            # The same two views as the early-fusion path: which sentences moved
+            # the text score, and which parts of the face moved the video score.
+            top_sentences: list[dict] = []
+            meaning_remainder = 0.0
+            face_regions: list[dict] = []
+            try:
+                if _is_linear_pipeline(text_bundle):
+                    top_sentences, meaning_remainder = _sentence_attributions(
+                        _raw_text_weights(_linear_raw_weights(text_bundle, text_cols)),
+                        sentences, sentence_vectors, pooling_weights)
+                if video_bundle is not None and _is_linear_pipeline(video_bundle):
+                    face_regions = _face_region_attributions(
+                        _linear_contributions(video_bundle, x_video, video_cols))
+            except Exception as e:
+                logger.warning("Could not attribute sentences or face regions: %s", e)
+
             bundles = {"text": text_bundle, "audio": audio_bundle, "video": video_bundle}
             scoring_details = {
                 "model_kind": "late_fusion",
                 "decision_threshold": round(float(threshold), 4),
+                "sentence_attributions": top_sentences,
+                "unattributed_meaning": meaning_remainder,
+                "face_regions": face_regions,
                 "modality_probabilities": {m: round(p, 4) for m, p in probabilities.items()},
                 "modality_thresholds": {m: round(float(bundles[m].threshold), 4) for m in probabilities},
                 "fusion_weights": {m: round(float(fusion_coef[i]), 4) for i, m in enumerate(fusion_inputs)},

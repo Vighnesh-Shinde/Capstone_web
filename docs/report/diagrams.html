@@ -1,0 +1,400 @@
+<section class="diagrams">
+<h2 id="diagrams">A. ARCHITECTURE AND IMPLEMENTATION DIAGRAMS</h2>
+<p class="lead">Five diagrams of the system as it actually runs today: the services, one
+session end to end, the inside of the shipped model, how a prediction is explained, and
+how a model reaches production.</p>
+
+<!-- ============================ A1 SYSTEM ARCHITECTURE ============================ -->
+<figure>
+<svg viewBox="0 0 1000 620" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="System architecture: browser, Spring Boot backend, PostgreSQL, FastAPI ML service and its tools">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b21b6"/>
+    </marker>
+  </defs>
+
+  <!-- browser -->
+  <rect class="bx" x="30" y="30" width="250" height="120" rx="10"/>
+  <text class="t" x="45" y="55">BROWSER — React 19 + Vite 8</text>
+  <text class="s" x="45" y="76">29 pages · 33 components</text>
+  <text class="s" x="45" y="94">Counsellor screens · Admin screens</text>
+  <text class="s" x="45" y="112">Report: score, SHAP, sentences, face</text>
+  <text class="s" x="45" y="134">localhost:5173</text>
+
+  <!-- backend -->
+  <rect class="bx" x="375" y="30" width="270" height="160" rx="10"/>
+  <text class="t" x="390" y="55">BACKEND — Spring Boot 3.3.4 (Java 17)</text>
+  <text class="s" x="390" y="76">19 REST controllers · 31 services</text>
+  <text class="s" x="390" y="94">27 JPA entities · 15 Flyway migrations</text>
+  <text class="s" x="390" y="112">JWT auth · roles ADMIN / COUNSELOR</text>
+  <text class="s" x="390" y="130">Session orchestration · model registry</text>
+  <text class="s" x="390" y="148">Consent · audit · dataset export · purge</text>
+  <text class="s" x="390" y="172">localhost:8080</text>
+
+  <!-- database -->
+  <rect class="bx db" x="740" y="30" width="230" height="160" rx="10"/>
+  <text class="t" x="755" y="55">PostgreSQL 16 (Docker)</text>
+  <text class="s" x="755" y="76">users · counselor_applications</text>
+  <text class="s" x="755" y="94">participants · sessions</text>
+  <text class="s" x="755" y="112">session_features (JSONB)</text>
+  <text class="s" x="755" y="130">reports · explanation_factors</text>
+  <text class="s" x="755" y="148">model_versions · audit_logs</text>
+  <text class="s" x="755" y="172">localhost:5433</text>
+
+  <!-- ML service -->
+  <rect class="bx ml" x="375" y="250" width="270" height="190" rx="10"/>
+  <text class="t" x="390" y="275">ML SERVICE — FastAPI (Python 3.11)</text>
+  <text class="s" x="390" y="296">/process · /enroll-voice · /languages</text>
+  <text class="s" x="390" y="314">/internal/validate-model · /reload-models</text>
+  <text class="s" x="390" y="338">media_pipeline · voiceprint · adequacy</text>
+  <text class="s" x="390" y="356">text_features · audio_features</text>
+  <text class="s" x="390" y="374">openface_features · video_features</text>
+  <text class="s" x="390" y="392">feature_space · model_loader</text>
+  <text class="s" x="390" y="410">real_inference (scoring + SHAP)</text>
+  <text class="s" x="390" y="432">127.0.0.1:8000 — never public</text>
+
+  <!-- tools -->
+  <rect class="bx tool" x="30" y="250" width="250" height="190" rx="10"/>
+  <text class="t" x="45" y="275">TOOLS AND WEIGHTS</text>
+  <text class="s" x="45" y="296">ffmpeg — audio extraction, 30 fps</text>
+  <text class="s" x="45" y="314">faster-whisper (small, int8) — ASR</text>
+  <text class="s" x="45" y="332">pyannote.audio — diarization</text>
+  <text class="s" x="45" y="350">all-mpnet-base-v2 — sentence vectors</text>
+  <text class="s" x="45" y="368">librosa — pitch, loudness</text>
+  <text class="s" x="45" y="386">OpenFace 2.2 (CLNF) — AUs + gaze</text>
+  <text class="s" x="45" y="404">MediaPipe — face geometry (stored)</text>
+  <text class="s" x="45" y="426">models/*.joblib + active_manifest.json</text>
+
+  <!-- storage -->
+  <rect class="bx" x="740" y="250" width="230" height="120" rx="10"/>
+  <text class="t" x="755" y="275">FILE STORAGE</text>
+  <text class="s" x="755" y="296">uploads/ — recordings (temporary)</text>
+  <text class="s" x="755" y="314">transcripts (DAIC-WOZ format)</text>
+  <text class="s" x="755" y="332">verification documents</text>
+  <text class="s" x="755" y="354">purged on the retention schedule</text>
+
+  <!-- arrows -->
+  <line class="ln" x1="280" y1="80" x2="370" y2="80" marker-end="url(#ar)"/>
+  <text class="lb" x="286" y="70">REST + JWT</text>
+  <line class="ln" x1="645" y1="80" x2="735" y2="80" marker-end="url(#ar)"/>
+  <text class="lb" x="652" y="70">JDBC</text>
+  <line class="ln" x1="510" y1="190" x2="510" y2="245" marker-end="url(#ar)"/>
+  <text class="lb" x="518" y="215">internal REST + shared token</text>
+  <line class="ln" x1="370" y1="330" x2="285" y2="330" marker-end="url(#ar)"/>
+  <text class="lb" x="290" y="320">loads / runs</text>
+  <line class="ln" x1="645" y1="300" x2="735" y2="300" marker-end="url(#ar)"/>
+  <text class="lb" x="652" y="292">reads media</text>
+  <line class="ln" x1="700" y1="190" x2="700" y2="290" marker-end="url(#ar)"/>
+  <text class="lb" x="600" y="232">stores paths</text>
+
+  <!-- footnote box -->
+  <rect class="note" x="30" y="480" width="940" height="110" rx="10"/>
+  <text class="t" x="48" y="505">WHY THREE SERVICES</text>
+  <text class="s" x="48" y="527">Language fit — the ML stack is Python, the transactional application is far better served by Spring Boot.</text>
+  <text class="s" x="48" y="547">Independence — the ML service can be restarted, scaled or moved without touching the web application.</text>
+  <text class="s" x="48" y="567">Security — loading a .joblib executes code, so the process that does it is isolated and never exposed publicly.</text>
+</svg>
+<figcaption>A1 — System architecture. Three services, one database, one file store. The
+frontend never talks to the ML service directly; the backend is the only caller.</figcaption>
+</figure>
+
+<!-- ============================ A2 SESSION PIPELINE ============================ -->
+<figure class="page-break">
+<svg viewBox="0 0 1000 640" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="End-to-end session pipeline from upload to report">
+  <defs>
+    <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b21b6"/>
+    </marker>
+    <marker id="arx" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#b91c1c"/>
+    </marker>
+  </defs>
+
+  <rect class="bx step" x="30" y="30" width="180" height="66" rx="9"/>
+  <text class="t" x="44" y="54">1 · UPLOAD</text>
+  <text class="s" x="44" y="74">counsellor uploads or records</text>
+  <text class="s" x="44" y="90">status PROCESSING (own transaction)</text>
+
+  <rect class="bx step" x="250" y="30" width="180" height="66" rx="9"/>
+  <text class="t" x="264" y="54">2 · AUDIO</text>
+  <text class="s" x="264" y="74">ffmpeg → 16 kHz mono WAV</text>
+  <text class="s" x="264" y="90">video → 30 fps for OpenFace</text>
+
+  <rect class="bx step" x="470" y="30" width="180" height="66" rx="9"/>
+  <text class="t" x="484" y="54">3 · TRANSCRIBE</text>
+  <text class="s" x="484" y="74">faster-whisper (small, int8)</text>
+  <text class="s" x="484" y="90">word-level timestamps</text>
+
+  <rect class="bx step" x="690" y="30" width="180" height="66" rx="9"/>
+  <text class="t" x="704" y="54">4 · DIARIZE</text>
+  <text class="s" x="704" y="74">pyannote — who spoke when</text>
+  <text class="s" x="704" y="90">speaker turns</text>
+
+  <rect class="bx step" x="250" y="150" width="400" height="80" rx="9"/>
+  <text class="t" x="264" y="174">5 · IDENTIFY THE PARTICIPANT (voiceprints)</text>
+  <text class="s" x="264" y="194">counsellor + companions enrolled earlier → 256-d embeddings</text>
+  <text class="s" x="264" y="212">cosine match ≥ 0.55 and ≥ 0.06 clear of the runner-up; whoever is</text>
+  <text class="s" x="264" y="226">left unmatched is the participant</text>
+
+  <rect class="bx step" x="250" y="270" width="400" height="66" rx="9"/>
+  <text class="t" x="264" y="294">6 · ADEQUACY GUARD</text>
+  <text class="s" x="264" y="314">≥ 165 participant words AND ≥ 39 speaker turns,</text>
+  <text class="s" x="264" y="330">the measured floor of the training data</text>
+
+  <rect class="bx step" x="120" y="376" width="240" height="96" rx="9"/>
+  <text class="t" x="134" y="400">7 · FEATURES (participant only)</text>
+  <text class="s" x="134" y="420">text 3,096 — words + meaning</text>
+  <text class="s" x="134" y="438">audio 64 — pitch, loudness, timing</text>
+  <text class="s" x="134" y="456">video 224 — OpenFace AUs + gaze</text>
+
+  <rect class="bx step" x="540" y="376" width="240" height="96" rx="9"/>
+  <text class="t" x="554" y="400">8 · SCORE (early fusion v2)</text>
+  <text class="s" x="554" y="420">one model, 3,384 inputs by NAME</text>
+  <text class="s" x="554" y="438">score vs cut-off 0.4412</text>
+  <text class="s" x="554" y="456">SHAP + sentence + face attribution</text>
+
+  <rect class="bx step" x="250" y="510" width="400" height="80" rx="9"/>
+  <text class="t" x="264" y="534">9 · STORE AND REPORT</text>
+  <text class="s" x="264" y="554">prediction, shares, explanation factors, scoring details,</text>
+  <text class="s" x="264" y="572">features and transcript stored → status COMPLETED →</text>
+  <text class="s" x="264" y="586">recording purged on the retention schedule</text>
+
+  <!-- refusals -->
+  <rect class="bx stop" x="700" y="150" width="270" height="186" rx="9"/>
+  <text class="t r" x="714" y="174">REFUSALS — never a guess</text>
+  <text class="s" x="714" y="196">SPEAKER_UNVERIFIED — participant not</text>
+  <text class="s" x="714" y="212">identifiable, or two unknown voices</text>
+  <text class="s" x="714" y="234">TOO_SHORT — below the training range;</text>
+  <text class="s" x="714" y="250">short clips produced a constant score</text>
+  <text class="s" x="714" y="272">VIDEO_UNAVAILABLE — model needs a face,</text>
+  <text class="s" x="714" y="288">none could be tracked</text>
+  <text class="s" x="714" y="310">Out-of-range warning (not a refusal):</text>
+  <text class="s" x="714" y="326">features &gt; 4 SD from training, shown on report</text>
+
+  <line class="ln" x1="210" y1="63" x2="245" y2="63" marker-end="url(#ar2)"/>
+  <line class="ln" x1="430" y1="63" x2="465" y2="63" marker-end="url(#ar2)"/>
+  <line class="ln" x1="650" y1="63" x2="685" y2="63" marker-end="url(#ar2)"/>
+  <line class="ln" x1="780" y1="96" x2="600" y2="146" marker-end="url(#ar2)"/>
+  <line class="ln" x1="450" y1="230" x2="450" y2="266" marker-end="url(#ar2)"/>
+  <line class="ln" x1="380" y1="336" x2="260" y2="372" marker-end="url(#ar2)"/>
+  <line class="ln" x1="360" y1="424" x2="535" y2="424" marker-end="url(#ar2)"/>
+  <line class="ln" x1="660" y1="472" x2="520" y2="506" marker-end="url(#ar2)"/>
+  <line class="lnx" x1="650" y1="190" x2="696" y2="190" marker-end="url(#arx)"/>
+  <line class="lnx" x1="650" y1="300" x2="696" y2="300" marker-end="url(#arx)"/>
+
+  <text class="lb" x="140" y="500">OpenFace runs in parallel with steps 3–4</text>
+</svg>
+<figcaption>A2 — One session, end to end. Steps 3 and 4 run while OpenFace tracks the face
+in a separate process, so the video analysis costs almost no extra wall-clock time.</figcaption>
+</figure>
+
+<!-- ============================ A3 MODEL INTERNALS ============================ -->
+<figure class="page-break">
+<svg viewBox="0 0 1000 560" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Inside the shipped early-fusion model">
+  <defs>
+    <marker id="ar3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b21b6"/>
+    </marker>
+  </defs>
+
+  <text class="t big" x="30" y="34">EARLY FUSION v2 — one model on all 3,384 measurements</text>
+
+  <!-- blocks -->
+  <rect class="bx blk" x="30" y="60" width="210" height="70" rx="9"/>
+  <text class="t" x="44" y="84">TEXT — 3,096</text>
+  <text class="s" x="44" y="104">24 word habits</text>
+  <text class="s" x="44" y="120">3,072 sentence meaning</text>
+
+  <rect class="bx blk" x="30" y="210" width="210" height="70" rx="9"/>
+  <text class="t" x="44" y="234">AUDIO — 64</text>
+  <text class="s" x="44" y="254">pitch, loudness, jitter,</text>
+  <text class="s" x="44" y="270">shimmer, timing (participant only)</text>
+
+  <rect class="bx blk" x="30" y="360" width="210" height="70" rx="9"/>
+  <text class="t" x="44" y="384">VIDEO — 224</text>
+  <text class="s" x="44" y="404">14 action units + 6 presence</text>
+  <text class="s" x="44" y="420">rates + 12 gaze directions</text>
+
+  <!-- per block processing -->
+  <rect class="bx" x="290" y="60" width="250" height="70" rx="9"/>
+  <text class="s" x="304" y="84">median impute → standardise</text>
+  <text class="s" x="304" y="104">→ PCA 20 components</text>
+  <text class="s" x="304" y="122">→ × 0.2236 (block weight)</text>
+
+  <rect class="bx" x="290" y="210" width="250" height="70" rx="9"/>
+  <text class="s" x="304" y="234">median impute → standardise</text>
+  <text class="s" x="304" y="254">→ PCA 10 components</text>
+  <text class="s" x="304" y="272">→ × 0.6325 (block weight)</text>
+
+  <rect class="bx" x="290" y="360" width="250" height="70" rx="9"/>
+  <text class="s" x="304" y="384">median impute → standardise</text>
+  <text class="s" x="304" y="404">→ PCA 10 components</text>
+  <text class="s" x="304" y="422">→ × 0.3162 (block weight)</text>
+
+  <!-- concat -->
+  <rect class="bx" x="590" y="200" width="150" height="90" rx="9"/>
+  <text class="t" x="604" y="226">CONCATENATE</text>
+  <text class="s" x="604" y="248">40 components</text>
+  <text class="s" x="604" y="266">20 + 10 + 10</text>
+  <text class="s" x="604" y="284">one vector</text>
+
+  <!-- classifier -->
+  <rect class="bx ml" x="790" y="180" width="180" height="130" rx="9"/>
+  <text class="t" x="804" y="206">LOGISTIC REGRESSION</text>
+  <text class="s" x="804" y="228">penalty L2, C = 0.1</text>
+  <text class="s" x="804" y="248">z = intercept + Σ coef·comp</text>
+  <text class="s" x="804" y="268">p = 1 / (1 + e^−z)</text>
+  <text class="s" x="804" y="290">p ≥ 0.4412 → Depressed</text>
+
+  <!-- back-mapping -->
+  <rect class="note" x="290" y="460" width="680" height="80" rx="9"/>
+  <text class="t" x="308" y="484">WHY EXPLANATION IS EXACT</text>
+  <text class="s" x="308" y="506">PCA and logistic regression are both linear, so the chain collapses to one weight per original column:</text>
+  <text class="s mono" x="308" y="528">w_original = (coef[block] × block weight) @ pca.components_ , then shap_i = w_original_i × (x_i − mean_i) / std_i</text>
+
+  <line class="ln" x1="240" y1="95" x2="285" y2="95" marker-end="url(#ar3)"/>
+  <line class="ln" x1="240" y1="245" x2="285" y2="245" marker-end="url(#ar3)"/>
+  <line class="ln" x1="240" y1="395" x2="285" y2="395" marker-end="url(#ar3)"/>
+  <line class="ln" x1="540" y1="95" x2="588" y2="215" marker-end="url(#ar3)"/>
+  <line class="ln" x1="540" y1="245" x2="585" y2="245" marker-end="url(#ar3)"/>
+  <line class="ln" x1="540" y1="395" x2="588" y2="278" marker-end="url(#ar3)"/>
+  <line class="ln" x1="740" y1="245" x2="785" y2="245" marker-end="url(#ar3)"/>
+  <line class="ln dash" x1="880" y1="310" x2="880" y2="455" marker-end="url(#ar3)"/>
+
+  <text class="lb" x="590" y="330">measured share of the decision:</text>
+  <text class="lb" x="590" y="348">text 77.1% · audio 12.8% · video 10.2%</text>
+</svg>
+<figcaption>A3 — Inside the shipped model. Per-block PCA plus block weights are what stop
+the 3,096 text columns from swamping 64 audio and 224 video columns.</figcaption>
+</figure>
+
+<!-- ============================ A4 EXPLAINABILITY ============================ -->
+<figure class="page-break">
+<svg viewBox="0 0 1000 470" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="How one prediction becomes four kinds of explanation">
+  <defs>
+    <marker id="ar4" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b21b6"/>
+    </marker>
+  </defs>
+
+  <rect class="bx ml" x="30" y="150" width="220" height="120" rx="9"/>
+  <text class="t" x="44" y="176">PREDICTION</text>
+  <text class="s" x="44" y="198">log-odds z, probability p</text>
+  <text class="s" x="44" y="218">SHAP per feature (exact)</text>
+  <text class="s" x="44" y="238">Σ shap + intercept = z</text>
+  <text class="s" x="44" y="258">verified to 3.55e−15</text>
+
+  <rect class="bx" x="330" y="30" width="290" height="86" rx="9"/>
+  <text class="t" x="344" y="54">1 · FEATURE BREAKDOWN</text>
+  <text class="s" x="344" y="74">strongest features, each with what was</text>
+  <text class="s" x="344" y="92">observed and which way it pushed</text>
+  <text class="s" x="344" y="108">glossary turns names into plain English</text>
+
+  <rect class="bx" x="330" y="140" width="290" height="86" rx="9"/>
+  <text class="t" x="344" y="164">2 · SENTENCE ATTRIBUTION</text>
+  <text class="s" x="344" y="184">text score split across the participant's</text>
+  <text class="s" x="344" y="202">own answers — exact for 3 of 4 poolings,</text>
+  <text class="s" x="344" y="218">the 4th shown as unattributed remainder</text>
+
+  <rect class="bx" x="330" y="250" width="290" height="86" rx="9"/>
+  <text class="t" x="344" y="274">3 · FACE REGIONS</text>
+  <text class="s" x="344" y="294">224 video features mapped to brows, eyes,</text>
+  <text class="s" x="344" y="312">cheeks, mouth, chin, gaze — shaded by</text>
+  <text class="s" x="344" y="328">their real contribution. NOT Grad-CAM.</text>
+
+  <rect class="bx" x="330" y="360" width="290" height="86" rx="9"/>
+  <text class="t" x="344" y="384">4 · MODALITY SHARES</text>
+  <text class="s" x="344" y="404">share_m = Σ|shap in m| / Σ|shap|</text>
+  <text class="s" x="344" y="422">how much of the reasoning rested on each</text>
+  <text class="s" x="344" y="438">— not a separate verdict per modality</text>
+
+  <rect class="bx db" x="690" y="140" width="280" height="196" rx="9"/>
+  <text class="t" x="704" y="166">THE COUNSELLOR'S REPORT</text>
+  <text class="s" x="704" y="188">depression score with cut-off marked</text>
+  <text class="s" x="704" y="208">caution box when input is out of range</text>
+  <text class="s" x="704" y="228">modality shares</text>
+  <text class="s" x="704" y="248">feature breakdown</text>
+  <text class="s" x="704" y="268">"which answers moved the result"</text>
+  <text class="s" x="704" y="288">"what the face contributed"</text>
+  <text class="s" x="704" y="308">"in plain words" — for the participant</text>
+  <text class="s" x="704" y="328">counsellor's own judgement, stored apart</text>
+
+  <line class="ln" x1="250" y1="190" x2="325" y2="80" marker-end="url(#ar4)"/>
+  <line class="ln" x1="250" y1="205" x2="325" y2="185" marker-end="url(#ar4)"/>
+  <line class="ln" x1="250" y1="225" x2="325" y2="290" marker-end="url(#ar4)"/>
+  <line class="ln" x1="250" y1="240" x2="325" y2="398" marker-end="url(#ar4)"/>
+  <line class="ln" x1="620" y1="75" x2="686" y2="175" marker-end="url(#ar4)"/>
+  <line class="ln" x1="620" y1="183" x2="686" y2="210" marker-end="url(#ar4)"/>
+  <line class="ln" x1="620" y1="293" x2="686" y2="265" marker-end="url(#ar4)"/>
+  <line class="ln" x1="620" y1="403" x2="686" y2="300" marker-end="url(#ar4)"/>
+</svg>
+<figcaption>A4 — One prediction, four kinds of explanation. Everything shown on a report is
+derived from the same exact SHAP decomposition, never from a separate explainer model.</figcaption>
+</figure>
+
+<!-- ============================ A5 MODEL LIFECYCLE ============================ -->
+<figure class="page-break">
+<svg viewBox="0 0 1000 340" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Model lifecycle from upload to serving">
+  <defs>
+    <marker id="ar5" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto">
+      <path d="M0 0 L10 5 L0 10 z" fill="#5b21b6"/>
+    </marker>
+  </defs>
+
+  <rect class="bx" x="20" y="60" width="170" height="90" rx="9"/>
+  <text class="t" x="34" y="84">1 · UPLOAD</text>
+  <text class="s" x="34" y="104">admin uploads .joblib</text>
+  <text class="s" x="34" y="122">stored, SHA-256 hashed,</text>
+  <text class="s" x="34" y="140">size-capped, audit-logged</text>
+
+  <rect class="bx ml" x="220" y="60" width="200" height="90" rx="9"/>
+  <text class="t" x="234" y="84">2 · VALIDATE</text>
+  <text class="s" x="234" y="104">loadable? predict_proba?</text>
+  <text class="s" x="234" y="122">threshold present?</text>
+  <text class="s" x="234" y="140">every column NAME producible?</text>
+
+  <rect class="bx" x="450" y="60" width="180" height="90" rx="9"/>
+  <text class="t" x="464" y="84">3 · ACTIVATE</text>
+  <text class="s" x="464" y="104">one active row per</text>
+  <text class="s" x="464" y="122">(modality, language)</text>
+  <text class="s" x="464" y="140">manifest rewritten</text>
+
+  <rect class="bx ml" x="660" y="60" width="180" height="90" rx="9"/>
+  <text class="t" x="674" y="84">4 · HOT RELOAD</text>
+  <text class="s" x="674" y="104">models reloaded in place</text>
+  <text class="s" x="674" y="122">cache swapped only if</text>
+  <text class="s" x="674" y="140">every model loads</text>
+
+  <rect class="bx db" x="870" y="60" width="110" height="90" rx="9"/>
+  <text class="t" x="884" y="84">5 · SERVING</text>
+  <text class="s" x="884" y="106">no redeploy</text>
+  <text class="s" x="884" y="124">no downtime</text>
+
+  <rect class="bx stop" x="220" y="200" width="410" height="110" rx="9"/>
+  <text class="t r" x="234" y="224">RULES ENFORCED BEFORE ANYTHING CHANGES</text>
+  <text class="s" x="234" y="246">rejected file is deleted and never recorded</text>
+  <text class="s" x="234" y="264">a 3-input fusion model needs an active video model first</text>
+  <text class="s" x="234" y="282">a video model cannot be removed while one depends on it</text>
+  <text class="s" x="234" y="300">an early-fusion model replaces the whole set for that language</text>
+
+  <rect class="note" x="660" y="200" width="320" height="110" rx="9"/>
+  <text class="t" x="676" y="224">SECURITY</text>
+  <text class="s" x="676" y="246">a .joblib is a Python pickle — loading</text>
+  <text class="s" x="676" y="264">one runs code. ADMIN only, internal</text>
+  <text class="s" x="676" y="282">endpoint behind a shared secret compared</text>
+  <text class="s" x="676" y="300">in constant time, ML service never public.</text>
+
+  <line class="ln" x1="190" y1="105" x2="215" y2="105" marker-end="url(#ar5)"/>
+  <line class="ln" x1="420" y1="105" x2="445" y2="105" marker-end="url(#ar5)"/>
+  <line class="ln" x1="630" y1="105" x2="655" y2="105" marker-end="url(#ar5)"/>
+  <line class="ln" x1="840" y1="105" x2="865" y2="105" marker-end="url(#ar5)"/>
+</svg>
+<figcaption>A5 — How a retrained model reaches production without a developer: upload,
+validate by column name, activate, hot reload.</figcaption>
+</figure>
+</section>

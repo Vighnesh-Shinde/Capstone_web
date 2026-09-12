@@ -6,6 +6,8 @@ import ExplanationFactorBar from "../components/ExplanationFactorBar";
 import ModalityContributions from "../components/ModalityContributions";
 import ConfidenceRing from "../components/ConfidenceRing";
 import PlainExplanation from "../components/PlainExplanation";
+import SentenceAttributions from "../components/SentenceAttributions";
+import FaceRegionMap from "../components/FaceRegionMap";
 import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
 import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
@@ -182,6 +184,24 @@ export default function Report() {
               ))}
             </div>
           </div>
+
+          <SentenceAttributions
+            sentences={details?.sentence_attributions}
+            remainder={details?.unattributed_meaning}
+          />
+
+          {details?.face_regions?.length > 0 && (
+            <div className="card">
+              <h2>What the face contributed</h2>
+              <p className="muted">
+                Where the video part of the score came from, by the part of the face each
+                measurement describes. The shading is the model&apos;s own contributions over
+                measurements such as brow lowering, blinking and gaze — the recording itself
+                is deleted after processing, and no image is analysed.
+              </p>
+              <FaceRegionMap regions={details.face_regions} />
+            </div>
+          )}
 
           {/* Placed after the technical breakdown and before the counsellor's
               own assessment: it is the same evidence in language a participant

@@ -185,14 +185,56 @@ def _embed_sentences(sentences: list[str]) -> np.ndarray:
     return np.concatenate(vecs, 0)
 
 
-def _mpnet_features(filler_dropped_texts: list[str]) -> np.ndarray:
-    """[mean, length-weighted mean, max, std] of per-sentence mpnet vectors --
-    the exact aggregation order embed_utterances() concatenates in."""
+def _mpnet_detail(filler_dropped_texts: list[str]):
+    """
+    The pooled vector AND the parts it was pooled from.
+
+    The per-sentence matrix is returned so a prediction can be split back across
+    the participant's own sentences: three of the four pooling blocks are linear
+    in it, which makes that decomposition exact rather than a guess. See
+    real_inference._sentence_attributions.
+    """
     sents = filler_dropped_texts if filler_dropped_texts else [""]
     V = _embed_sentences(sents)  # (n_sentences, 768)
     w = np.array([max(len(s.split()), 1) for s in sents], dtype=np.float64)
     w = w / w.sum()
-    return np.concatenate([V.mean(0), (V * w[:, None]).sum(0), V.max(0), V.std(0)]).astype(np.float64)
+    pooled = np.concatenate(
+        [V.mean(0), (V * w[:, None]).sum(0), V.max(0), V.std(0)]).astype(np.float64)
+    return pooled, sents, V.astype(np.float64), w
+
+
+def _mpnet_features(filler_dropped_texts: list[str]) -> np.ndarray:
+    """[mean, length-weighted mean, max, std] of per-sentence mpnet vectors --
+    the exact aggregation order embed_utterances() concatenates in."""
+    return _mpnet_detail(filler_dropped_texts)[0]
+
+
+def compute_text_features_detailed(participant_segments: list["Segment"]):
+    """
+    The 3,096-column vector, plus the sentences and per-sentence vectors behind
+    its embedding half. Same numbers as compute_text_features — that function
+    is now a thin wrapper — with the detail an explanation needs.
+    """
+    if not participant_segments:
+        raise ValueError(
+            "No participant speech segments to extract text features from -- "
+            "this means diarization/transcription upstream produced nothing usable."
+        )
+
+    cleaned = [_clean(seg.text) for seg in participant_segments]
+    cleaned = [c for c in cleaned if c]
+
+    lex = _lexical_features(cleaned)
+    lex_vec = np.array([lex[k] for k in LEX_COLS], dtype=np.float64)
+
+    filler_dropped = [c for c in cleaned if c.lower() not in FILLER_ONLY]
+    mpnet_vec, sentences, sentence_vectors, pooling_weights = _mpnet_detail(filler_dropped)
+
+    vec = np.concatenate([lex_vec, mpnet_vec])
+    assert vec.shape[0] == EXPECTED_FEATURE_COUNT, (
+        f"text feature vector has {vec.shape[0]} entries, expected {EXPECTED_FEATURE_COUNT}"
+    )
+    return vec, sentences, sentence_vectors, pooling_weights
 
 
 def compute_text_features(participant_segments: list["Segment"]) -> np.ndarray:

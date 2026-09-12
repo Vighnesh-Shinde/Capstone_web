@@ -108,6 +108,35 @@ OPENFACE_COLS = _columns()
 assert len(OPENFACE_COLS) == 224
 
 
+# Which part of the face each measurement describes, so a prediction can be
+# shown on a face diagram instead of as column names. Grad-CAM cannot be used
+# here — there is no convolutional network and no stored frames — so this is an
+# attribution over measured regions, and the report says exactly that.
+FACE_REGIONS = {
+    "AU01": "brows", "AU02": "brows", "AU04": "brows",
+    "AU05": "eyes", "AU45": "eyes",
+    "AU06": "cheeks", "AU09": "nose",
+    "AU10": "upper lip", "AU12": "mouth corners", "AU14": "mouth corners",
+    "AU15": "mouth corners", "AU20": "mouth corners", "AU23": "lips",
+    "AU28": "lips", "AU25": "mouth opening", "AU26": "jaw",
+    "AU17": "chin",
+}
+REGION_ORDER = ["brows", "eyes", "cheeks", "nose", "upper lip", "mouth corners",
+                "lips", "mouth opening", "jaw", "chin", "gaze direction",
+                "overall movement", "tracking quality"]
+
+
+def region_of(column: str) -> str:
+    """The face region a video feature belongs to."""
+    if column.startswith("gz_"):
+        return "gaze direction"
+    if column.startswith("au_total"):
+        return "overall movement"
+    if column.endswith("frac_tracked"):
+        return "tracking quality"
+    return FACE_REGIONS.get(column[:4], "other")
+
+
 class OpenFaceError(Exception):
     """OpenFace features could not be produced for this recording."""
 

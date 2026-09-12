@@ -1,0 +1,1467 @@
+================================================================================
+DEPRESSION DETECTION PLATFORM - COMPLETE PROJECT EXPLANATION
+Project Phase II (CS421) - Department of Computer Science & Engineering
+Prepared 12 September 2026. Every number in this document was measured, not estimated.
+================================================================================
+
+HOW TO USE THIS FILE
+  1  Problem statement                     14  Backend structure
+  2  Objectives and what was achieved       15  Frontend structure
+  3  The dataset (DAIC-WOZ)                 16  ML service structure and model management
+  4  Why this corpus is hard                17  Running the project on localhost
+  5  Features: what is measured             18  Explainable AI (SHAP, sentences, face, Grad-CAM)
+  6  The inference pipeline                 19  Results
+  7  The models and how they were trained   20  Stakeholders: who does what
+  8  Early fusion vs late fusion            21  Limitations
+  9  The arithmetic, end to end             22  Advantages
+  10 Why the output is a percentage         23  Future scope
+  11 Guards: when the system refuses        24  Question bank (60 questions with answers)
+  12 System architecture                    25  Glossary
+  13 Database design                        26  Current deployment status
+
+================================================================================
+1. PROBLEM STATEMENT
+================================================================================
+
+Depression is common, treatable, and badly under-detected. In a first counselling
+conversation the counsellor has only their own impression to work from: there is no
+instrument that measures what was said and how it was said, and no record of the
+evidence behind that impression. Self-report questionnaires (PHQ-8/PHQ-9) depend on the
+person answering accurately in the moment, and are easy to under-answer.
+
+Formal problem statement:
+
+  "Given an audio-video recording of a counselling conversation, produce an
+   evidence-backed screening indicator of depression for the participant only,
+   which (a) separates the participant's speech from everyone else's, (b) measures
+   what they said, how they said it, and how their face moved, (c) combines those
+   measurements into a single score with a stated decision cut-off, (d) explains that
+   score feature by feature in language a non-technical reader can act on, and
+   (e) refuses to answer when the recording is outside the range the models were
+   trained on - all inside a secured, consent-governed web platform that a counsellor
+   and an administrator can operate without a developer."
+
+The last two clauses are what separate this from a notebook experiment: an unexplained
+number is not usable in mental health, and a confident number produced from unusable
+input is actively dangerous.
+
+================================================================================
+2. OBJECTIVES, AND WHAT WAS ACHIEVED
+================================================================================
+
+O1. Build a multimodal ML pipeline (text + audio + video) on a recognised clinical
+    corpus.
+    ACHIEVED - DAIC-WOZ, 188 participants.
+
+O2. Train honestly: official splits, one untouched test set, repeated validation.
+    ACHIEVED - 10 repeated 80/20 splits with the whole model selection redone inside
+    every split, plus a single evaluation on the official test split.
+
+O3. Beat the previously available baseline on the same protocol.
+    ACHIEVED - AUC 0.8463 vs 0.768, F1 0.6857 vs 0.611, accuracy 0.766 vs 0.702.
+
+O4. Make every modality genuinely contribute to the decision.
+    ACHIEVED in v2 - text 77.1%, audio 12.8%, video 10.2% of the decision weight, with
+    the accuracy cost measured and reported (-0.0577 cross-validated AUC).
+
+O5. Explainable AI that a participant can understand.
+    ACHIEVED - exact SHAP values (verified to 3.55e-15), per-sentence attribution,
+    per-face-region attribution, and a plain-language section on every report.
+
+O6. Deployable by an operator, not a developer.
+    ACHIEVED - upload, validate and activate models from the admin screen, with hot
+    reload and no redeploy.
+
+O7. Consent, privacy and auditability by design.
+    ACHIEVED - consent record per session, recordings purged after feature extraction,
+    per-participant erasure, full audit log.
+
+O8. Refuse rather than guess.
+    ACHIEVED - TOO_SHORT, SPEAKER_UNVERIFIED and VIDEO_UNAVAILABLE refusals, plus
+    out-of-range warnings printed on the report itself.
+
+================================================================================
+3. THE DATASET: DAIC-WOZ
+================================================================================
+
+3.1 What it is
+  DAIC-WOZ = Distress Analysis Interview Corpus - Wizard of Oz, University of Southern
+  California (Gratch et al., LREC 2014). Clinical-style interviews conducted by an
+  on-screen virtual interviewer called "Ellie", operated by a human in another room
+  (the "wizard"). It is the benchmark corpus of the AVEC 2016 and AVEC 2017 depression
+  sub-challenges. Access requires an approved request; ours was approved. The corpus may
+  NOT be redistributed, which is why it is kept out of the git repository.
+
+3.2 What each participant folder contains
+  - AUDIO.wav                 16 kHz mono 16-bit PCM, whole session
+  - TRANSCRIPT.csv            start_time, stop_time, speaker, value (one row per utterance)
+  - COVAREP.csv / FORMANT.csv pre-computed audio features at 100 Hz (not used by us)
+  - CLNF_features/_features3D 68 facial landmarks per frame (30 fps)
+  - CLNF_AUs.txt              facial action-unit intensities and presence flags
+  - CLNF_gaze.txt             gaze direction, in camera frame AND head frame
+  - CLNF_pose.txt             head translation and rotation
+  - CLNF_hog.bin              appearance descriptors (not used by us)
+
+  NOTE: DAIC-WOZ ships NO raw video. This single fact decides several design choices
+  later in this document - most importantly, Grad-CAM is impossible (section 18.4).
+
+3.3 Cohort actually used (measured in our own Phase-1 audit)
+  - Participants listed in the official split files ..... 189
+  - Folders present on disk ............................. 188
+  - Excluded: participant 440 ........................... corrupt in the official release
+  - Release-documented exclusions (already absent) ...... 342, 394, 398, 460
+  - USED ................................................ 188
+  - Depressed 55 (29.3%) / Not depressed 133 (70.7%)
+  - PHQ-8 score: min 0, median 5, mean 6.68, max 23
+  - One label anomaly: one participant has PHQ8_Score = 10 but PHQ8_Binary = 0. We kept
+    the released label rather than "fixing" it, and reported the anomaly.
+
+3.4 Participant speech volume (annotation tokens stripped) - this defines our guards
+                        min     5th pct    median      max
+    utterance rows       42        76       150.5      385
+    words               165       489      1247.5     4551
+    duration (minutes)   6.9      10.0       15.2      32.8
+  Three transcripts contain no interviewer rows at all.
+
+3.5 LABELLING - two different labels, never mixed
+  (a) TRAINING LABEL (DAIC-WOZ): PHQ8_Binary. The 8-item Patient Health Questionnaire
+      total (0-24) thresholded at >= 10, the standard cut-off for probable depression.
+      It is a questionnaire outcome, not a psychiatrist's diagnosis - an important
+      honesty point in the viva.
+  (b) PLATFORM LABEL (our own research dataset): the COUNSELLOR'S OWN ASSESSMENT,
+      recorded on the report. The model's prediction is NEVER used as a label, because
+      training on your own output teaches nothing and launders error into "truth".
+  The two live in separate database tables and are never averaged together.
+
+3.6 Official split
+  train 107 - dev 34 - test 47 participants, participant-disjoint (nobody appears in two
+  splits). Class balance is similar across splits (about 28-30% depressed).
+
+================================================================================
+4. WHY THIS CORPUS IS HARDER THAN THE LITERATURE SUGGESTS
+================================================================================
+
+Burdisso et al. (ClinicalNLP @ NAACL 2024) showed that a model reading ONLY the
+interviewer's prompts reaches about 0.90 F1 on DAIC-WOZ - the highest text-only result
+reported on the corpus - because the interview branches on the participant's answers, so
+which questions Ellie asked leaks the outcome. Any model trained on the full transcript
+is partly exploiting that, and the leak disappears in real deployment.
+
+Rules we adopted as a result, all of them costly:
+  - Train on the PARTICIPANT'S SPEECH ONLY. Interviewer turns are dropped everywhere.
+  - Remove interviewer-dependent audio timing. 24 of the original 85 audio features
+    measured response latency and between-turn gaps - that is, Ellie's scripted pacing.
+    Removing them costs accuracy (audio-only cross-validated AUC 0.671 -> 0.609) but
+    what remains is genuinely the participant's voice.
+  - Never use gender. The training split has an 18-point depression-rate gap between
+    genders that does not exist in dev or test: a shortcut that would inflate our
+    numbers and then fail on real people.
+
+This is why our numbers look lower than some published ones, and why we can defend them.
+
+================================================================================
+5. FEATURES: WHAT THE COMPUTER ACTUALLY MEASURES
+================================================================================
+
+5.1 TEXT - 3,096 numbers per session
+  (a) 24 lexical features, counted from the participant's cleaned words:
+      total words; number of answers; words per answer (mean/std/median); type-token
+      ratio; root type-token ratio; mean word length; rates of first-person singular
+      ("I, me, my"), first-person plural, second person, third person; absolutist words
+      ("always, never, nothing"); negative-emotion words; positive-emotion words;
+      negations; hedges ("maybe", "I guess"); past-tense words; sleep/fatigue words;
+      self-focus ratio; negative-to-positive ratio; sentiment balance; very-short-answer
+      rate; long-answer rate.
+      These are research-backed markers (self-focus, absolutist language, negative
+      affect) and, crucially, a human can read them.
+  (b) 3,072 sentence-meaning features: every answer is embedded with
+      sentence-transformers/all-mpnet-base-v2 (768 dimensions per sentence, maximum 64
+      tokens, float32), then pooled four ways and concatenated:
+          [ mean | length-weighted mean | max | standard deviation ] x 768 = 3,072
+      The max block matters clinically: one very dark sentence in an otherwise flat
+      interview is exactly what an average would erase.
+  Block order is fixed and is part of the model contract. Getting it wrong produces a
+  confident, wrong answer that nothing downstream can detect.
+
+5.2 AUDIO - 64 numbers per session (the "clean-64" set)
+  Computed with librosa over participant speech only:
+      - utterance duration and words-per-utterance, each summarised by 9 functionals
+        (mean, std, p10, p25, p50, p75, p90, inter-quartile range, slope)
+      - total speech time, number of utterances, total words, words per second
+      - loudness: RMS in dB, 9 functionals plus range
+      - voiced ratio
+      - pitch: YIN estimator, 65-400 Hz, converted to semitones, 9 functionals plus range
+      - jitter proxy (frame-to-frame pitch change) and shimmer proxy (frame-to-frame
+        loudness change), 9 functionals each
+      - three participant-only timing features re-derived so they never reference the
+        interviewer: session_len_s_pt, speech_ratio_pt, utts_per_minute_pt
+  Clinical grounding: flattened pitch, reduced loudness variation and slowed speech are
+  documented correlates of depression (psychomotor retardation).
+
+5.3 VIDEO - 224 numbers per session (OpenFace)
+  From OpenFace 2.2 using the CLNF landmark model, the same family DAIC-WOZ used:
+      - 14 action-unit intensities (AU01, 02, 04, 05, 06, 09, 10, 12, 14, 15, 17, 20,
+        25, 26), each summarised by 8 statistics - mean, std, p10, p50, p90, max, and
+        two movement statistics (mean and std of frame-to-frame change) = 112
+      - 6 action-unit presence rates (AU04, 12, 15, 23, 28, 45) = 6
+      - au_total, the sum of the 14 intensities, with the same 8 statistics = 8
+      - gaze: 12 columns (both eyes; camera-frame x/y/z and head-frame x/y/z), 8
+        statistics each = 96
+      - au_frac_tracked and gz_frac_tracked, how much of the session was trackable = 2
+      TOTAL = 224
+  Frames are filtered to success == 1 and confidence >= 0.75, and every recording is
+  resampled to 30 fps first, because the movement statistics scale with frame rate.
+  Separately, the platform also stores 111 MediaPipe face-geometry features for its own
+  future research dataset; those are not used by the DAIC-WOZ models.
+
+  What an Action Unit is: the Facial Action Coding System describes facial movement as
+  individual muscle actions. AU04 is the brow lowerer (frowning), AU12 the lip-corner
+  puller (smiling), AU15 the lip-corner depressor, AU17 the chin raiser, AU45 a blink.
+
+================================================================================
+6. FROM RECORDING TO FEATURES: THE INFERENCE PIPELINE
+================================================================================
+
+  1. The counsellor uploads a session recording (common formats, up to 520 MB).
+  2. ffmpeg extracts 16 kHz mono audio.
+  3. faster-whisper (model "small", int8 quantised, CPU) transcribes with word-level
+     timestamps.
+  4. pyannote.audio (speaker-diarization-community-1) decides who spoke when.
+  5. SPEAKER IDENTIFICATION by voiceprint. The counsellor - and any companion in the
+     room - enrolled earlier by reading a fixed passage, giving a 256-dimensional voice
+     embedding. Each diarized speaker is compared to those by cosine similarity. A
+     speaker is claimed by a known voice if similarity >= 0.55 AND it beats the
+     runner-up by >= 0.06. Whoever is left unclaimed is the participant. If that is
+     ambiguous - no one left over, or more than one unknown voice - the session is
+     REFUSED (SPEAKER_UNVERIFIED) rather than scoring the wrong person.
+  6. ADEQUACY GUARD. If the participant produced fewer than 165 words or fewer than 39
+     speaker turns, the session is refused as TOO_SHORT. Section 7.5 explains the real
+     bug that made this necessary.
+  7. FEATURE EXTRACTION, participant speech only: text 3,096; audio 64; video 224 via
+     OpenFace, which runs as a separate process IN PARALLEL with transcription so it
+     adds almost nothing to the wall-clock time.
+  8. Each model is fed BY COLUMN NAME from its own stored list of column names, so a
+     model can never silently receive the wrong feature set.
+  9. Scoring (section 7), explanation (section 18), report stored, and the recording
+     purged on the retention schedule.
+
+================================================================================
+7. THE MODELS, AND HOW THEY WERE TRAINED
+================================================================================
+
+Three generations of model exist in this project. All of them are trained on the same
+188 DAIC-WOZ participants with the same rules; they differ in how the modalities are
+combined.
+
+7.1 The building block: one scikit-learn Pipeline per modality (LATE FUSION)
+      SimpleImputer(median)  ->  StandardScaler  ->  SelectKBest(ANOVA F)  ->  LogisticRegression
+    - SimpleImputer(median): a feature that could not be measured arrives as NaN (never
+      as 0, which would be a real measurement of "none") and is filled with the median
+      of the training data.
+    - StandardScaler: each feature becomes (x - mean) / std, so features with different
+      units are comparable.
+    - SelectKBest: keeps the k features most associated with the label by ANOVA F-test.
+      With 188 people and 3,096 text features, selection is not optional - without it a
+      model memorises the training split.
+    - LogisticRegression: a linear model, chosen deliberately so every prediction can be
+      explained exactly (section 18).
+
+7.2 GENERATION 1 - LATE FUSION (three models plus a combiner)
+    text  : SelectKBest k=50,  C=0.01   -> test AUC 0.7532
+    audio : SelectKBest k=25,  C=1.0    -> test AUC 0.6017
+    video : SelectKBest k=25,  C=1.0    -> test AUC 0.5844
+    fusion: LogisticRegression over the three probabilities [p_text, p_audio, p_video]
+            trained on OUT-OF-FOLD probabilities (see 7.6)
+            coefficients: text +1.988, audio +0.909, video -0.510, intercept -1.633
+            threshold 0.2945
+            test: AUC 0.7684, accuracy 0.7021, F1 0.6111, sensitivity 0.786, specificity 0.667
+    Reading of those coefficients: the combiner learned to trust text most, audio less,
+    and to treat the video probability as mildly NEGATIVE evidence - on this corpus the
+    video model was at or below chance, so the combiner used it as a correction, not as
+    support.
+
+7.3 GENERATION 2 - EARLY FUSION v1 (one model on everything, joined)
+    All 3,384 features (3,096 text + 64 audio + 224 video) are concatenated into ONE
+    input vector, and one model is trained on it:
+      ColumnTransformer(
+          text    -> Imputer -> Scaler -> PCA(40)
+          audio64 -> Imputer -> Scaler -> PCA(10)
+          video   -> Imputer -> Scaler -> PCA(10) )   ->  LogisticRegression(elastic-net)
+    Why PCA per block rather than one SelectKBest over all 3,384 columns: we tested the
+    naive version and it reproduced the classic early-fusion failure exactly - a global
+    SelectKBest chose 50 text columns and ZERO audio or video columns, so "early fusion"
+    returned byte-identical numbers to a text-only model. That is demonstrated in our
+    results, not asserted.
+    Outcome: official-test AUC 0.8333, accuracy 0.766, F1 0.667 - but the elastic-net
+    penalty (which can drive coefficients to exactly zero) had deleted the ENTIRE audio
+    block. Weight shares came out text 97-98%, audio 0.0%, video 2-3%. It was
+    multimodal in name only.
+
+7.4 GENERATION 3 - EARLY FUSION v2 (the model this project ships)
+    Two changes fix the previous problem:
+    (a) L2 penalty only. L2 shrinks coefficients but never sets them exactly to zero, so
+        no block can be deleted. (L1 / elastic-net is what deleted audio in v1.)
+    (b) Block balancing. Each block's PCA output is multiplied by a weight w_b / sqrt(k_b)
+        using ColumnTransformer(transformer_weights=...). Without this, the text block
+        dominates by construction simply because it has more columns and more components.
+        The weights were tuned inside cross-validation.
+    Final shipped configuration:
+        text    3,096 columns -> PCA 20 components, block weight 0.2236
+        audio64    64 columns -> PCA 10 components, block weight 0.6325
+        video     224 columns -> PCA 10 components, block weight 0.3162
+        classifier: LogisticRegression(penalty='l2', C=0.1) over the 40 components
+        decision threshold 0.4412 (0.3449 when refitted under the official protocol)
+    Acceptance rule - stated openly as a PRODUCT REQUIREMENT, not a data finding:
+        text share must be the largest, audio >= 10%, video >= 5% of the back-mapped
+        coefficient mass. 90 of the 384 candidate configurations met it; the best of
+        those by cross-validated AUC was shipped.
+    Achieved shares: text 77.1%, audio 12.8%, video 10.2%.
+    THE COST, measured and reported rather than hidden:
+        cross-validated AUC 0.7633 (unconstrained) -> 0.7056 (constrained) = -0.0577
+        seed-42 test AUC     0.8249 -> 0.7946
+    In other words: forcing audio and video to count makes the model slightly worse on
+    this corpus. We ship the constrained model because the project requires a genuinely
+    multimodal decision, and we say so.
+
+7.5 THE DECISION THRESHOLD, and the bug that taught us to guard the input
+    A classifier outputs a probability; a threshold turns it into a decision. We do NOT
+    use 0.5, because only ~30% of the training participants are depressed - at 0.5 the
+    model would miss most of them. The threshold is chosen by YOUDEN'S J STATISTIC:
+        J = sensitivity + specificity - 1, maximised over candidate thresholds,
+        computed on OUT-OF-FOLD predictions of the training data only - never on test.
+    The bug that this project is most careful about: in an early version, every SHORT
+    recording came back "depressed". The cause was not the threshold but the input: a
+    one-minute recording is far outside the training range, the text model's RBF kernel
+    collapsed to a constant 0.2542 for every such session, and 0.2542 happened to sit
+    just above the then-threshold of 0.48 after fusion. A model fed data unlike its
+    training data still returns a confident number. Hence the adequacy guard (165 words /
+    39 turns) and the out-of-range warnings on every report.
+
+7.6 EVALUATION PROTOCOL (the part that makes the numbers trustworthy)
+    - PRIMARY: 10 repeated stratified 80/20 participant splits. Inside each 80%,
+      5-fold cross-validation chooses PCA sizes, block weights, C and the threshold; the
+      20% is scored once. Crucially the WHOLE selection is redone inside every split, so
+      the mean is not inflated by choosing a winner on one lucky split. We learned this
+      the hard way: on a single split, early fusion looked like a clear winner (0.7736 vs
+      0.7343); across 10 splits that reversed.
+    - SECONDARY: the official AVEC-2017 protocol - train on train+dev (141 people), score
+      the official 47-person test split ONCE. This is the number comparable with
+      published work.
+    - Confidence intervals: 10,000-sample bootstrap over test participants.
+    - Out-of-fold probabilities: for the late-fusion combiner, the three model
+      probabilities are produced by cross_val_predict so the combiner never sees
+      predictions made on data the base models trained on. Otherwise it would learn from
+      over-confident inputs and set the wrong weights.
+
+================================================================================
+8. EARLY FUSION vs LATE FUSION (the concept your mentor will ask about)
+================================================================================
+
+LATE FUSION (decision-level): train one model per modality, then combine their
+OUTPUT PROBABILITIES.
+    + Each modality can use the algorithm that suits it; missing modalities are easy to
+      handle; the combiner's weights are directly interpretable.
+    - The modalities never interact: any relationship between "flat voice" AND "negative
+      words" is invisible, because each model has already collapsed to one number.
+
+EARLY FUSION (feature-level): concatenate all features into ONE vector and train ONE
+model on it.
+    + The model can use relationships ACROSS modalities, because it sees all the raw
+      measurements together.
+    - Scale and width imbalance destroys it if handled naively: 3,096 text columns next
+      to 64 audio columns means the selection or the regularisation simply throws the
+      small blocks away. That is exactly what we measured in v1.
+  Our solution - the standard one in the literature and the one we implemented:
+    per-block dimensionality reduction (PCA) so each modality contributes a comparable
+    number of components, plus per-block weights so no modality dominates by width, and
+    an L2 penalty so no block can be zeroed.
+
+INTERMEDIATE / HYBRID FUSION exists too (e.g. gated or attention-based fusion at
+utterance level). The earlier research this project inherited tried six such
+architectures - BiLSTM, transformer, cross-attention, gated and bilinear fusion - and all
+of them lost to simple models on this corpus, because 107-142 training people is far too
+few to fit them honestly.
+
+================================================================================
+9. THE ARITHMETIC, END TO END (worked, with real numbers)
+================================================================================
+
+Everything below is the shipped v2 early-fusion model.
+
+STEP 1 - Impute. Any unmeasured feature becomes the training median.
+
+STEP 2 - Standardise. For each column i:
+             z_i = (x_i - mean_i) / std_i
+         mean_i and std_i are the training values, stored in the model bundle
+         (feature_means, feature_stds). Note: for a column with zero variance,
+         StandardScaler stores scale_ = 1.0, NOT 0.0 - dividing by the raw std there
+         would be division by zero. (The GPU run caught and fixed exactly this.)
+
+STEP 3 - PCA per block. For block b with k_b components:
+             c_b = (z_b - pca_mean_b) @ components_b^T           (shape: k_b numbers)
+         text -> 20 components, audio -> 10, video -> 10. Total 40.
+
+STEP 4 - Block weighting. Each block's components are multiplied by its weight:
+             text x 0.2236,  audio x 0.6325,  video x 0.3162
+         (each weight is w_b / sqrt(k_b), so wide blocks do not win by width alone).
+
+STEP 5 - Logistic regression over the 40 weighted components:
+             z (the log-odds) = intercept + sum_j coef_j * component_j
+         intercept = -1.2749 in the shipped model.
+
+STEP 6 - Probability (the percentage on the report):
+             p = 1 / (1 + e^(-z))                     [the sigmoid / logistic function]
+
+STEP 7 - Decision:
+             p >= threshold (0.4412)  ->  "Depressed"
+             p <  threshold           ->  "Not depressed"
+
+WORKED EXAMPLE (verification participant 458, from the GPU run):
+             sum of all SHAP values + intercept = z = -6.7561
+             p = 1 / (1 + e^(6.7561)) = 0.00116  = 0.1%
+             0.001 < 0.4412  ->  Not depressed.   True label: Not depressed. Correct.
+
+SECOND EXAMPLE (participant 384):
+             z = +0.2713  ->  p = 1 / (1 + e^(-0.2713)) = 0.5674 = 56.7%
+             0.567 >= 0.4412  ->  Depressed.      True label: Depressed. Correct.
+
+BACK-MAPPING A COEFFICIENT TO ONE ORIGINAL FEATURE (this is what makes explanation
+possible at all). PCA is a linear map, so the chain scaler -> PCA -> linear model is
+itself linear in the original columns:
+             w_original = (coef[block's components] * block_weight) @ components_b
+         giving one weight per original column. The block weight MUST be included; if it
+         is left out every contribution and every modality share is silently wrong. (We
+         found and fixed exactly this in the website's code when v2 arrived.)
+
+SHAP VALUE OF FEATURE i (exact, no sampling):
+             shap_i = w_original_i * (x_i - mean_i) / std_i
+         and the additivity property holds exactly:
+             sum_i shap_i + intercept = z = the model's log-odds
+         Verified on 5 held-out participants: maximum difference 3.553e-15, which is
+         floating-point noise. Cross-checked against the shap library's LinearExplainer:
+         maximum per-feature difference 6.193e-16.
+
+MODALITY SHARE (what the report shows as "text 77%, audio 13%, video 10%"):
+             share_m = sum over features in m of |shap_i|  /  sum over ALL features of |shap_i|
+         It answers "how much of the model's reasoning rested on this modality", which is
+         NOT the same as "this modality's own verdict" - a single early-fusion model has
+         no per-modality verdict, and the report says so.
+
+THRESHOLD SELECTION (Youden's J):
+             J(t) = sensitivity(t) + specificity(t) - 1, maximised over t,
+         computed on out-of-fold training predictions only.
+
+CONFUSION MATRIX AND THE METRICS (official protocol, shipped v2 model):
+             TN = 24   FP = 9
+             FN = 2    TP = 12
+             accuracy    = (TP+TN)/total = 36/47 = 0.766
+             sensitivity = TP/(TP+FN)    = 12/14 = 0.857   (depressed people found)
+             specificity = TN/(TN+FP)    = 24/33 = 0.727   (non-depressed cleared)
+             precision   = TP/(TP+FP)    = 12/21 = 0.571
+             F1          = 2*P*R/(P+R)   = 0.6857
+             balanced accuracy = (0.857+0.727)/2 = 0.792
+             ROC-AUC     = 0.8463
+
+================================================================================
+10. WHY THE OUTPUT IS A PERCENTAGE, AND WHAT IT IS NOT
+================================================================================
+
+The number on the report is the model's DEPRESSION SCORE: the probability it assigns to
+the "depressed" class, from the sigmoid in step 6. Three things to be clear about:
+
+  - It is NOT a severity. 80% does not mean "more depressed" than 60%; it means the
+    pattern resembles the depressed group more strongly.
+  - It is NOT the model's confidence in its own correctness.
+  - It is compared against a CUT-OFF THAT IS NOT 50%. For the shipped model the cut-off
+    is 44% (and 34% under the official-protocol refit; the v1 late-fusion model used
+    29%). A score of 44% therefore means "Depressed". This confused a real reader during
+    development - a report read "Depressed, 35% confidence" - which is why the report now
+    labels the number "depression score", draws the cut-off as a tick on the ring, and
+    explains in one sentence why the cut-off is below half.
+
+Why the cut-off is below 50%: only about 3 in 10 people in the training data were
+depressed, so the model's probabilities sit low overall; a 0.5 cut-off would miss most
+depressed participants. The threshold is set where sensitivity and specificity are
+jointly best (Youden's J).
+
+================================================================================
+11. GUARDS: WHEN THE SYSTEM REFUSES TO ANSWER
+================================================================================
+
+  TOO_SHORT            participant produced < 165 words or < 39 speaker turns.
+                       Measured floors from the training split. A shorter interview is
+                       outside the range every model was fitted on, and the failure mode
+                       is not "slightly worse" but "confidently wrong in one direction".
+  SPEAKER_UNVERIFIED   the participant could not be identified unambiguously - the
+                       counsellor's voice was not found, nobody was left over, or more
+                       than one unknown voice was present.
+  VIDEO_UNAVAILABLE    the serving model needs facial measurements and no face could be
+                       tracked. Substituting a neutral value would silently change the
+                       arithmetic, so the session is refused instead.
+  FAILED               anything else (ML service unreachable, unreadable media), with the
+                       reason stored on the session.
+  OUT-OF-RANGE WARNING (not a refusal) every session also reports how many of the
+                       features the model uses sit more than 4 standard deviations from
+                       the training data, and names the worst one. This is printed on the
+                       report so a counsellor knows when to discount the score. Typical
+                       causes: microphone level, camera and lighting, interview length.
+
+================================================================================
+12. SYSTEM ARCHITECTURE
+================================================================================
+
+Three services, each doing what it is good at:
+
+   BROWSER (React 19 + Vite)
+        |  REST + JWT (Bearer token)
+        v
+   BACKEND (Spring Boot 3.3.4, Java 17)  <---- JDBC ---->  PostgreSQL 16 (Docker, port 5433)
+        |  internal REST, shared-secret token
+        v
+   ML SERVICE (Python 3.11, FastAPI)  ---->  model files (.joblib), ffmpeg, Whisper,
+                                              pyannote, OpenFace, MediaPipe
+
+Why three services rather than one:
+  - The ML ecosystem is Python; the business application (security, transactions,
+    relational data) is far better served by Spring Boot. Forcing either into the other's
+    language would be a permanent tax.
+  - The ML service can be restarted, scaled or kept OFF the public internet independently.
+    It is the component that loads .joblib files, and loading a .joblib executes code, so
+    isolating it is a security decision as much as an engineering one.
+  - Models can be replaced without touching or redeploying the Java code.
+
+12.1 HOW THE DESIGN WAS ARRIVED AT (the process, not just the result)
+  1. Contract first. The ML service's response shape was fixed before any real model
+     existed, and a mock pipeline returned that exact shape. That is why swapping in real
+     models, then a three-input fusion model, then an early-fusion model never required a
+     change to the backend or the frontend contract.
+  2. Database before features. Sessions, consent and reports were modelled first; feature
+     vectors were added later as JSONB precisely so a model with a different width would
+     never force a schema migration.
+  3. Refusals designed in, not bolted on. Each guard (too short, unidentified speaker,
+     missing face) was added the moment the failure was understood, and each one returns a
+     status the counsellor can act on rather than a stack trace.
+  4. One stylesheet, tokens not components. A single design system (violet accent, warm
+     neutral ground, red reserved for real errors) with reusable loading/empty/error
+     states, so 29 pages look like one product and a new page inherits the behaviour.
+  5. Explanation treated as a feature, not a report footer. When the text model became
+     linear, the report gained per-feature reasons; when sentence vectors became
+     available, it gained per-sentence reasons; when OpenFace arrived, per-region ones.
+  6. Every change verified against the corpus rather than assumed - which is how the gaze
+     bug and the constant-output bug were both caught.
+
+Size of the system as built: about 24,700 lines across the three services - 29 frontend
+pages, 33 frontend components, 19 REST controllers, 31 backend services, 27 JPA entities,
+15 Flyway migrations, 12 ML pipeline modules, 37 git commits.
+
+================================================================================
+13. DATABASE DESIGN (PostgreSQL, 15 Flyway migrations)
+================================================================================
+
+Flyway applies numbered SQL files (V1 ... V15) at startup, so every machine has the same
+schema and the history is in git. Main tables:
+
+  ACCOUNTS AND ACCESS
+    users                      account, role (ADMIN / COUNSELOR), status, profile fields
+    counselor_applications     what an applicant submitted, and what the admin judged
+    verification_documents     licence, degree, photo ID - typed, not an unlabelled pile
+    password_reset_tokens, email_verification_tokens
+
+  CLINICAL WORKFLOW
+    participants               a person seen repeatedly, referenced as P-001 etc.
+    sessions                   one recording: language, status, consent flags, paths,
+                               speaker attribution, failure reason, purge state
+    session_companions         other people present, with their enrolled voiceprints
+    session_features           the feature vectors (JSONB): text 3096, audio 85, video 111,
+                               plus the participant transcript
+    reports                    prediction, confidence_score, per-modality contributions,
+                               and scoring_details (JSONB: cut-off, per-modality scores,
+                               fusion weights, out-of-range warnings, sentence
+                               attributions, face-region attributions)
+    explanation_factors        one row per explained feature, with its contribution
+    counselor_judgments        the counsellor's own assessment - the research label
+
+  SPEAKERS
+    counselor_voiceprints      256-dimensional embedding per counsellor
+    enrollment_passages        the admin-editable passage everyone reads
+
+  ML OPERATIONS
+    model_versions             every uploaded model: modality, language, label, file name,
+                               SHA-256, feature count, threshold, notes, who uploaded it,
+                               and exactly one active row per (modality, language)
+
+  GOVERNANCE
+    dataset_samples            research-dataset eligibility and admin review
+    audit_logs                 every administrative action
+
+Why feature vectors are JSONB and not columns: nothing queries an individual feature, and
+a retrained model with a different width must not require a schema migration.
+
+================================================================================
+14. BACKEND STRUCTURE (Spring Boot)
+================================================================================
+
+  com.project.depression
+    controller/   19 REST controllers - Auth, Session, Participant, Profile, Settings,
+                  Voiceprint, ReferenceData, CounselorApplication, CounselorJudgment,
+                  Health, plus Admin{User, Counselor, Model, Dataset, Privacy, Stats,
+                  Audit, EnrollmentPassage}, and a GlobalExceptionHandler
+    service/      31 services - AuthService, SessionService, SessionProcessingService,
+                  ModelVersionService, VoiceprintService, DatasetExportService,
+                  MediaPurgeService, DataErasureService, AuditLogService, MailService,
+                  GoogleAuthService, CaptchaService, LanguageCatalogService, ...
+    entity/       27 JPA entities (section 13)
+    dto/          request/response records - the API never exposes entities directly
+    repository/   Spring Data JPA repositories
+    config/       SecurityConfig, JwtService, JwtAuthFilter, RateLimitFilter,
+                  UserDetailsServiceImpl, AdminAccountSeeder
+    client/       MlServiceClient - typed HTTP client for the ML service, with a
+                  60-minute timeout for the processing call and 120 s elsewhere
+
+  Request flow:  Controller (validates, authorises)
+              -> Service (business rules, transactions)
+              -> Repository (database)
+  Security:      Spring Security + JWT. Every request carries a Bearer token; the filter
+                 validates the signature and loads the account; role checks are per route.
+
+  Session processing, specifically (SessionProcessingService):
+    set status PROCESSING in its OWN transaction (so the counsellor sees it immediately)
+    -> call the ML service -> store speaker attribution, transcripts, features, report,
+    explanation factors -> status COMPLETED. A refusal from the ML service is mapped to
+    TOO_SHORT / SPEAKER_UNVERIFIED / FAILED with the message preserved.
+
+================================================================================
+15. FRONTEND STRUCTURE (React 19 + Vite 8)
+================================================================================
+
+  frontend/src
+    pages/        29 pages
+                  public:     Login, RequestCounselorAccess, ForgotPassword,
+                              ResetPassword, VerifyEmail, PrivacyPolicy, TermsOfService,
+                              CrisisResources, HelpGuide, NotFound
+                  counsellor: Dashboard, Participants, ParticipantDetail, Sessions,
+                              NewSession, SessionDetail, Report, VoiceEnrollment,
+                              Settings, Profile
+                  admin:      AdminHome, AdminUsers, AdminApplications,
+                              AdminApplicationDetail, AdminModels, AdminDataset,
+                              AdminDatasetDetail, AdminPrivacy, AdminVoicePassage
+    components/   33 components - ConfidenceRing, ModalityContributions,
+                  ExplanationFactorBar, PlainExplanation, SentenceAttributions,
+                  FaceRegionMap, JudgmentPanel, ConsentRecord, SpeakerAttributionPanel,
+                  SessionNotes, VoiceRecorder, PasswordInput, GoogleSignInButton,
+                  LoadingState / EmptyState / ErrorState, ...
+    lib/          featureGlossary.js - turns model feature names into plain English
+    api/          axios clients; the API base URL is derived from window.location so the
+                  same build works on localhost and over the LAN
+    index.css     one shared stylesheet: CSS custom properties (violet accent, warm
+                  neutral background, red reserved for genuine errors), utility classes,
+                  responsive breakpoints, WCAG AA contrast, visible keyboard focus
+
+  Design decisions worth defending in a viva:
+    - One stylesheet with design tokens, not a component library: the visual identity is
+      deliberate ("clinical calm"), and every page inherits it automatically.
+    - Reusable Loading / Empty / Error states so no screen invents its own behaviour.
+    - The report is print-friendly: "Print / Save as PDF" uses the browser's own dialog,
+      so there is no PDF dependency to maintain.
+
+================================================================================
+16. ML SERVICE STRUCTURE (FastAPI)
+================================================================================
+
+  ml-service/app
+    main.py               /process, /enroll-voice, /health, /languages and the internal
+                          admin endpoints; maps refusals to clean HTTP codes
+    schemas.py            the request/response contract (Pydantic)
+    internal_admin.py     /internal/validate-model, /internal/reload-models,
+                          /internal/active-models - protected by a shared secret with a
+                          constant-time comparison
+    mock_inference.py     a mock pipeline with the identical response shape, for
+                          development without models
+    real/
+      media_pipeline.py   ffmpeg -> faster-whisper -> pyannote diarization -> participant
+                          isolation
+      voiceprint.py       256-d embeddings, cosine matching, role resolution
+      text_features.py    24 lexical + 3,072 mpnet features (and the per-sentence
+                          vectors used for sentence attribution)
+      audio_features.py   the 85-column legacy set and the 64-column clean set
+      openface_features.py runs OpenFace 2.2 and computes the 224 AU/gaze features;
+                          also maps each feature to a face region
+      video_features.py   MediaPipe face geometry, 111 features (stored for research)
+      feature_space.py    which extractor produces which column, and how a model's own
+                          column list is turned into its input vector
+      model_loader.py     reads the active manifest, loads bundles, hot-reload
+      adequacy.py         the too-short guard and its measurements
+      real_inference.py   the orchestrator: scoring, SHAP, sentence and face attribution
+      daic_transcript.py  writes the conversation in DAIC-WOZ format for future training
+
+  MODEL MANAGEMENT (the "no developer needed" part)
+    1. Admin uploads a .joblib on Admin -> Models.
+    2. The backend stores it, hashes it (SHA-256) and asks the ML service to VALIDATE it:
+       is it a dict with a model and a threshold, does it expose predict_proba, and is
+       every column it names something this platform actually measures? Validation is by
+       COLUMN NAME, not by counting columns - two different 224-column feature sets look
+       identical to a width check.
+    3. A rejected file is deleted and never recorded.
+    4. Activating a version writes models/active_manifest.json and triggers a hot reload;
+       the cache is only swapped once every model loads successfully.
+    5. "Revert to built-in" restores the shipped weights (text/audio/fusion) or removes
+       the model entirely (video, early fusion - there is no built-in for those).
+    6. Rules enforced: a three-input fusion model cannot be activated without an active
+       video model, and a video model cannot be removed while one depends on it.
+    SECURITY NOTE: a .joblib is a Python pickle and loading one runs code. Upload is
+    ADMIN-only, the internal endpoint needs the shared secret, and the ML service must
+    never be exposed to the internet.
+
+================================================================================
+17. RUNNING THE PROJECT ON LOCALHOST (step by step)
+================================================================================
+
+17.0 PREREQUISITES (one-time)
+  - Docker Desktop (for PostgreSQL)
+  - Java 17 and Maven wrapper (bundled: ./mvnw.cmd)
+  - Node.js 20+ (frontend)
+  - Python 3.11 virtual environment in ml-service/venv with requirements.txt installed
+  - ffmpeg: the SHARED build, unzipped into ml-service/tools/
+    (torchcodec loads FFmpeg's DLLs at runtime; a static-only build fails)
+  - OpenFace 2.2 (only if a model using OpenFace features is active):
+    unzip OpenFace_2.2.0_win_x64.zip into ml-service/tools/ so that
+    ml-service/tools/OpenFace_2.2.0_win_x64/FeatureExtraction.exe exists
+  - Hugging Face token (HF_TOKEN) with the terms accepted for
+    pyannote/speaker-diarization-community-1 and pyannote/segmentation-3.0
+  - backend/.env  : ADMIN_* seed account, ML_SERVICE_URL, ML_ADMIN_TOKEN, JWT_SECRET,
+                    CORS_ALLOWED_ORIGINS, optional MAIL_* / Google / reCAPTCHA keys
+  - ml-service/.env: USE_REAL_MODELS=true, HF_TOKEN, ML_ADMIN_TOKEN (must match backend)
+
+17.1 START POSTGRESQL
+        docker compose up -d
+      Verify:  docker ps        (expect depression-postgres, healthy, 0.0.0.0:5433->5432)
+
+17.2 START THE ML SERVICE  (terminal 1)
+        cd ml-service
+        ./venv/Scripts/python.exe -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+      Verify:  curl http://127.0.0.1:8000/health   ->  {"status":"ok","real_models":true}
+
+17.3 START THE BACKEND  (terminal 2)
+        cd backend
+        ./mvnw.cmd -o spring-boot:run
+      Flyway applies any new migrations at startup.
+      Verify:  curl http://localhost:8080/api/health   ->  HTTP 200
+
+17.4 START THE FRONTEND  (terminal 3)
+        cd frontend
+        npm install          (first time only)
+        npm run dev -- --host
+      Open http://localhost:5173
+
+17.5 FIRST-RUN CHECKS
+  - Log in as the seeded admin account (credentials come from backend/.env).
+  - Admin -> Models: confirm which models are serving.
+  - Counsellor account: enrol the counsellor's voice (record or upload) BEFORE uploading
+    a session - without it the pipeline cannot tell whose voice to analyse and will
+    refuse the session.
+  - Upload a session with at least ~3 minutes of participant speech; shorter recordings
+    are refused by design.
+
+17.6 SHUTTING DOWN
+      Ctrl-C in each terminal; docker compose down (add -v ONLY if you want to erase the
+      database - the pgdata volume holds every account, session and report).
+
+17.7 TROUBLESHOOTING
+  - "Docker API not reachable": Docker Desktop is not running.
+  - Port already in use: another copy is still running - find it with
+    netstat -ano | findstr :8080  and stop that process.
+  - Sessions stuck in PROCESSING: the ML service died mid-request; restart it and
+    re-upload.
+  - Language not selectable: that language has no complete model set; install models.
+
+================================================================================
+18. EXPLAINABLE AI (XAI) IN THIS PROJECT
+================================================================================
+
+18.1 Why the models are linear on purpose
+  Every shipped model is linear (logistic regression, with PCA which is also linear).
+  That is a deliberate trade: a non-linear model might score slightly higher, but its
+  prediction could only be explained by approximation. With a linear chain, the exact
+  contribution of every feature can be computed in closed form - no sampling, no
+  surrogate model, no "explanation" that is itself a guess.
+
+18.2 SHAP - for text and audio (and video too, in fact)
+  SHAP (SHapley Additive exPlanations) assigns each feature the share of the prediction
+  it is responsible for, with the guarantee that the shares add up to the prediction.
+  For a linear model the Shapley value has a closed form:
+        shap_i = w_original_i * (x_i - mean_i) / std_i
+  which is what our service computes, using the weights back-mapped through the PCA
+  (section 9). Properties we verified on the GPU machine and re-verified on the website:
+     - additivity: sum(shap) + intercept = the model's log-odds, max error 3.553e-15
+     - agreement with the shap library's LinearExplainer: max error 6.193e-16
+  So when the report says "used more negative words: +0.31", that number is the exact
+  amount that feature moved the log-odds, not an approximation.
+  NOTE for anyone re-running the check: shap's default masker subsamples the background
+  to 100 rows and produces a spurious ~1e-3 disagreement; build the masker explicitly.
+
+18.3 Sentence-level attribution - the text explanation a human can act on
+  A SHAP value for "mpnet_734" is useless to a counsellor. But the text features are
+  POOLED sentence embeddings, so the text score can be split back across the
+  participant's own sentences, exactly:
+        mean block          sentence s contributes  w . v_s / n
+        weighted-mean block                          w . (weight_s * v_s)
+        max block           each dimension's contribution belongs to the sentence that
+                            achieved the maximum in that dimension
+        std block           NOT linear in a single sentence - reported as an
+                            "unattributed remainder", never spread around to make the
+                            totals look complete
+  Verified: sentence totals + remainder reconstruct the text SHAP total to 5.55e-15.
+  On the report this becomes "Which answers moved the result", quoting the participant's
+  own sentences with a bar showing how strongly each pushed, and in which direction.
+
+18.4 GRAD-CAM: why it is NOT used, and what replaces it
+  Grad-CAM produces a heat map by taking the gradient of the class score with respect to
+  the activations of a CONVOLUTIONAL feature map and projecting it back onto the INPUT
+  IMAGE. It needs three things: a convolutional network, spatial feature maps, and the
+  image itself at inference time.
+  This project has none of them:
+     - No convolutional network. The video path is StandardScaler -> PCA -> logistic
+       regression over tabular numbers. The gradient of the output with respect to the
+       input is just the model's constant coefficient vector - identical for every
+       session, so a "heat map" from it would carry no session-specific information.
+     - No spatial dimension. The 224 video features are per-session STATISTICS (mean,
+       std, percentiles, frame-to-frame change) of action units and gaze. A statistic
+       over a whole interview has no (x, y) location to shade.
+     - No frames. DAIC-WOZ ships no raw video, so no CNN could be trained on it, and the
+       platform deletes the recording after processing, so there is no image to overlay.
+  WHAT WOULD BE NEEDED to make Grad-CAM legitimate here: a consented raw-video dataset,
+  a CNN trained on face crops with enough participants to fit it honestly, and evidence
+  that such a model beats the action-unit features at all (video has scored at or below
+  chance on this corpus in three separate runs).
+  WHAT WE DELIVER INSTEAD - and label honestly: a FACE-REGION ATTRIBUTION. Every one of
+  the 224 video features is mapped to the part of the face it measures (brows, eyes,
+  cheeks, nose, lips, mouth corners, mouth opening, jaw, chin, gaze direction, overall
+  movement, tracking quality). The report shades a face diagram by each region's real
+  SHAP contribution. It is a genuine per-region attribution over what was measured, and
+  the report calls it "which facial measurements the model weighed" - never Grad-CAM,
+  and never implied to be a pixel saliency map.
+
+18.5 What the counsellor actually sees on a report
+  1. Depression score as a ring, with the decision cut-off marked on it.
+  2. A caution box when measurements fall far outside the training range, naming the
+     worst one in plain words (for example "Speaking volume").
+  3. Modality contributions - text / audio / video shares, with a sentence explaining
+     that for a single fused model these are shares of the reasoning, not separate verdicts.
+  4. Explainability breakdown - the strongest features, each with what was observed and
+     which way it pushed the result, translated out of model jargon by a glossary.
+  5. "Which answers moved the result" - the participant's own sentences.
+  6. "What the face contributed" - the shaded face diagram and region list.
+  7. "In plain words" - the same evidence written to be read aloud to the participant,
+     including the error rate and an explicit statement that this is not a diagnosis.
+  8. The counsellor's own assessment, stored separately and never fed back to the model.
+
+================================================================================
+19. RESULTS
+================================================================================
+
+19.1 Per-modality models, held-out official test split (47 people, 14 depressed)
+  Model    Algorithm                          Inputs   Accuracy   F1     ROC-AUC   95% CI
+  Text     LogReg, SelectKBest 50, C=0.01      3096     70.2%    0.563   0.7532   [0.59-0.89]
+  Audio    LogReg, SelectKBest 25, C=1.0         64     57.4%    0.444   0.6017   [0.40-0.79]
+  Video    LogReg, SelectKBest 25, C=1.0        224     57.4%    0.474   0.5844   [0.41-0.75]
+  Reading: text carries most of the signal; audio is weak; video is barely above chance
+  on its own. This is consistent with three independent runs on this corpus.
+
+19.2 Fusion models compared (official protocol: train+dev 141 -> test 47, scored once)
+  Model                                     ROC-AUC   Accuracy    F1      Sens    Spec
+  Previous baseline (inherited work)         0.768      0.702     0.611     -       -
+  v1 late fusion (3 probabilities)           0.7684     0.7021    0.6111   0.786   0.667
+  v1 early fusion (concatenated, enet)       0.8333     0.766     0.667    0.786   0.758
+  v2 early fusion UNCONSTRAINED              0.8766     0.6809    0.6341   0.929   0.576
+  v2 early fusion CONSTRAINED  (SHIPPED)     0.8463     0.766     0.6857   0.857   0.727
+  Best overall on the comparable protocol: the shipped v2 model - AUC 0.8463 vs the
+  0.768 baseline, F1 0.6857 vs 0.611, accuracy 0.766 vs 0.702, and it finds 12 of the
+  14 depressed participants.
+
+19.3 The more reliable estimate: 10 repeated 80/20 splits, selection redone inside each
+  Configuration                          inner-CV AUC (mean +/- std)
+  v1 text only (reference)                    0.8255 +/- 0.032
+  v1 early fusion B1 (text+audio+video)       0.8140 +/- 0.033
+  v2 unconstrained                            0.7633
+  v2 constrained (shipped)                    0.7056
+  Single-split numbers are unstable at this sample size: one seed gave inner-CV 0.8796
+  but test AUC 0.5421 on its own 38 held-out people. That is exactly why the repeated
+  protocol exists, and why we quote the repeated mean rather than a best split.
+
+19.4 What each modality actually contributes in the shipped model
+  Share of the decision (back-mapped coefficient mass):  text 77.1%  audio 12.8%  video 10.2%
+  Drop-one-modality, cross-validated AUC:
+      without text   0.4863   (-0.2193)   <- the model collapses to chance
+      without audio  0.7247   (+0.0191)
+      without video  0.7569   (+0.0512)
+  Honest reading: text carries the signal. Audio and video are included because the
+  project requires a multimodal decision, and their inclusion costs a little accuracy on
+  this corpus. We report the cost rather than implying they help.
+
+19.5 The cost of forcing multimodality (v2)
+      cross-validated AUC 0.7633 -> 0.7056   (-0.0577)
+      seed-42 test AUC    0.8249 -> 0.7946   (-0.0303)
+      shares              text 96.1 / audio 0.9 / video 3.0   ->   77.1 / 12.8 / 10.2
+
+19.6 Verification that the website computes the same thing as the training machine
+  - The website's text extractor reproduces the training features on the corpus:
+    24 lexical features exact to 3.55e-15; sentence vectors within 1e-3 (GPU half
+    precision in v1; v2 fixed this by disabling TF32, giving parity at 6.4e-08).
+  - Participant timing features match to 1e-13 across all 188 participants.
+  - Running the training models on the corpus through the website's own code reproduces
+    the published AUCs exactly: text 0.7532, audio 0.6017.
+  - Early-fusion attribution on the website: contributions + intercept equal the model's
+    own log-odds to better than 1e-8 (checked again after v2's block weights were added).
+  - Model bundles delivered are byte-identical (SHA-256) to what was installed.
+
+19.7 A bug the corpus let us find in our own website
+  DAIC-WOZ ships gaze in BOTH camera and head coordinates plus the head pose, so the
+  website's conversion could be tested against ground truth. It was wrong: the code
+  applied R^T . g where the corpus's own convention is R . g. Mean error 0.2304 vs
+  0.0114 - a factor of 20. Fixed, and the fix is verified.
+
+19.8 Comparison with published work (verified sources only)
+  Paper (year, venue)                       Dataset      Fusion           Reported
+  Gratch et al. (2014, LREC)                DAIC         -                corpus paper
+  Valstar et al. (2016, AVEC/ACM)           DAIC-WOZ     challenge        RMSE 5.73, MAE 4.74
+  Al Hanai et al. (2018, Interspeech)       DAIC-WOZ     LSTM sequence    "comparable to topic modelling"
+  Rohanian et al. (2019, Interspeech)       DAIC-WOZ     word-level gated claims to beat early and late fusion
+  Burdisso et al. (2024, ClinicalNLP/NAACL) DAIC-WOZ     text only        F1 0.90 by EXPLOITING interviewer bias
+  Sun et al. (2021, Sensors/MDPI)           E-DAIC       LATE fusion      CCC 0.733, RMSE 3.783
+  Ishikawa & Duke (2026, preprint)          E-DAIC       text+LLM hybrid  macro-F1 0.723 (LOSO)
+  Gan et al. (2025, preprint)               DAIC-WOZ     teacher-student  F1 ~0.99 claimed - not credible
+  OURS (v2, shipped)                        DAIC-WOZ     EARLY fusion     AUC 0.8463, F1 0.6857, acc 0.766
+  Two honesty notes for the viva:
+    - These numbers are NOT directly comparable: protocols, splits and even datasets
+      differ (E-DAIC is a different, larger corpus; LOSO is a different validation).
+    - The headline 0.90 and 0.99 figures in the literature come from interviewer leakage
+      or unverifiable protocols. Our contribution is a defensible number under a stated
+      protocol, not a record.
+
+================================================================================
+20. STAKEHOLDERS: WHO DOES WHAT
+================================================================================
+
+  PARTICIPANT (the person being screened)
+     Gives informed consent (recording, automated analysis, storage, research reuse -
+     each a separate choice). Speaks in the interview. Has the right to have their data
+     erased. Never logs in. The report is written so it can be read aloud to them.
+
+  COUNSELLOR (the primary user)
+     Applies for access with professional credentials; enrols their own voice once;
+     creates participants and sessions; uploads or records the conversation; reads the
+     report; RECORDS THEIR OWN PROFESSIONAL ASSESSMENT, which is stored separately from
+     the AI result and is the label used for future research; writes private notes.
+     The counsellor - not the model - is the decision maker.
+
+  COMPANION (family member or friend present in the room)
+     Optionally enrols their voice at the start of a session so the system can exclude
+     their speech from the analysis. This is what stops a parent's voice being scored as
+     the participant's.
+
+  ADMINISTRATOR
+     Approves or rejects counsellor applications after checking documents; manages model
+     versions (upload, validate, activate, revert); edits the enrolment passage; reviews
+     which consented sessions enter the research dataset; exports the dataset; performs
+     erasure requests; reads the audit log. Admin is a fully trusted role by design -
+     uploading a model runs code on the ML server.
+
+  RESEARCH / ENGINEERING TEAM (us)
+     Trains models on the GPU machine, verifies parity with the website, packages
+     bundles, and is responsible for the honesty of every reported number.
+
+  GUIDE AND EVALUATION PANEL
+     Assess the work. Everything in this document is reproducible from the repository and
+     the results folders.
+
+  (Not a stakeholder, but stated for completeness: the platform makes no autonomous
+   decision about anyone. There is no automated referral, no alerting, and no action
+   taken on a score.)
+
+================================================================================
+21. LIMITATIONS (stated plainly - a mentor will ask)
+================================================================================
+
+  L1  It is a SCREENING AID, not a diagnosis. In testing it is wrong about 3 times in 10.
+  L2  Small data. 188 participants, a 47-person test set. A difference of a few points
+      between models is inside the noise; our confidence intervals span 0.70-0.95.
+  L3  Population mismatch. Training data is US adults interviewed by a virtual agent in
+      English. Indian participants, accents, code-switching, and human interviewers are
+      untested. Other languages are disabled until their own models exist.
+  L4  Audio and video contribute little on this corpus. Forcing them to count (v2) costs
+      accuracy. We ship it that way for multimodality, and say so.
+  L5  Recording conditions change the measurements. Microphone level, camera, lighting
+      and interview length can push features far outside the training range - we detect
+      and display this, but we cannot correct it yet.
+  L6  Train/deploy differences remain. DAIC-WOZ used an older face tracker (CLNF) and we
+      run OpenFace 2.2; the corpus is segmented into utterance rows while our diarization
+      produces speaker turns (we trained on turn-merged data to match, but it is not
+      identical).
+  L7  The PHQ-8 label is a questionnaire outcome, not a clinical diagnosis.
+  L8  Short interviews are refused rather than scored. That is safe, but it does mean the
+      system cannot help with brief conversations.
+  L9  No automated test suite yet: verification is scripted parity checks, API tests and
+      manual testing.
+  L10 Not yet deployed beyond localhost; no HTTPS hosting, and the ML service must be
+      kept off the public internet.
+  L11 Single-language models today (English). Marathi/Hindi require their own training.
+
+================================================================================
+22. ADVANTAGES / STRENGTHS
+================================================================================
+
+  A1  Honest evaluation end to end: official splits, one-shot test, repeated splits with
+      selection redone inside each, bootstrap intervals, and published costs of every
+      design choice.
+  A2  Leak-free modelling: participant speech only, interviewer-dependent features
+      removed, gender excluded - against a corpus where the published state of the art
+      is partly an artefact of leakage.
+  A3  Exact explainability, not approximation: SHAP in closed form, verified to 1e-15,
+      down to individual sentences and face regions.
+  A4  Refusals instead of silent failure: too-short, unidentifiable speaker, missing
+      face, and out-of-range warnings on the report.
+  A5  Operable without a developer: models are uploaded, validated by column name,
+      activated and hot-reloaded from the admin screen.
+  A6  Real speaker handling: voiceprint enrolment and diarization mean the right person
+      is analysed, and the evidence for that decision is stored with the session.
+  A7  Privacy by design: consent per action, recordings purged after feature extraction,
+      erasure, audit trail, and features stored so future retraining never needs the
+      original video.
+  A8  A report written for two audiences: a clinician's breakdown and a participant's
+      plain-language explanation on the same page.
+  A9  Reproducible: every model bundle carries its own column list, threshold, training
+      statistics and metrics; the website validates all of it on upload.
+
+================================================================================
+23. FUTURE SCOPE
+================================================================================
+
+  F1  Collect consented, counsellor-labelled sessions through the platform and retrain on
+      them. This is the single most valuable next step: it fixes the population mismatch
+      (L3), the recording-condition mismatch (L5) and the train/deploy gap (L6) at once.
+  F2  Calibrate for recording conditions - loudness normalisation, and per-device
+      baselines - so a different microphone cannot move the score.
+  F3  Indian-language models (Marathi, Hindi), which the architecture already supports:
+      install a language's models and it becomes selectable.
+  F4  Longitudinal tracking: the same participant across sessions, showing change over
+      time rather than a single snapshot - the data model already supports repeat sessions.
+  F5  If a consented raw-video dataset becomes available, train a CNN on face crops and
+      then - and only then - genuine Grad-CAM becomes possible (section 18.4).
+  F6  Automated test suite (JUnit, pytest, Vitest) with CI on every commit.
+  F7  Secure deployment: HTTPS, the ML service on a private network, backups and
+      retention automation.
+  F8  Clinical validation study with a qualified clinician's diagnosis as the reference
+      standard, rather than PHQ-8.
+  F9  Fairness auditing across gender, age and accent once enough local data exists.
+  F10 Counsellor-facing analytics: cohort trends, and model-versus-counsellor agreement
+      over time, which is also how model drift would be detected.
+
+================================================================================
+24. QUESTION BANK - what a mentor or panel is likely to ask
+================================================================================
+
+--- THE PROJECT ---------------------------------------------------------------
+
+Q1. Explain your project in one minute.
+A.  A counsellor uploads a recording of a counselling session. Our ML service separates
+    the participant's voice from everyone else's using voiceprints and diarization,
+    transcribes the speech with Whisper, and measures three things: what was said (word
+    habits and sentence meaning), how it was said (pitch, loudness, timing) and how the
+    face moved (OpenFace action units and gaze). One early-fusion model trained on the
+    official DAIC-WOZ corpus scores all 3,384 measurements together and produces a
+    depression score against a stated cut-off. Every report explains itself with exact
+    SHAP values, down to which sentences and which parts of the face moved the result.
+    On the official test split it reaches AUC 0.846, accuracy 76.6%, and finds 12 of 14
+    depressed participants.
+
+Q2. What is novel about it compared with existing DAIC-WOZ work?
+A.  Most published work stops at a notebook. We built a deployable, secured platform with
+    real speaker identification, leak-free modelling, exact explanations at sentence and
+    face-region level, admin-managed model versioning with name-based validation, refusal
+    guards, and a consent-governed research dataset labelled by the counsellor rather
+    than by our own model.
+
+Q3. Who are the users?
+A.  Admin and counsellor log in; participants and companions are recorded with consent.
+    Section 20 lists each role's responsibilities.
+
+Q4. Is this a medical device / can it diagnose?
+A.  No. It is a screening aid. The report states that, gives the error rate, and stores
+    the counsellor's own assessment separately. No action is taken automatically.
+
+--- DATASET -------------------------------------------------------------------
+
+Q5. Which dataset, and why that one?
+A.  DAIC-WOZ (USC). It is the benchmark for depression detection from clinical
+    interviews, used by the AVEC 2016/2017 challenges, and it has audio, transcripts and
+    facial features with PHQ-8 labels for all participants.
+
+Q6. How large is it, and how is it split?
+A.  189 in the split files; 188 usable after excluding participant 440 (corrupt in the
+    release). Official split: 107 train, 34 dev, 47 test, participant-disjoint.
+    55 depressed (29.3%) and 133 not depressed.
+
+Q7. How is the data labelled?
+A.  PHQ8_Binary: the 8-item Patient Health Questionnaire scored 0-24 and thresholded at
+    >= 10, the standard cut-off for probable depression.
+
+Q8. Is the dataset balanced? How did you handle imbalance?
+A.  No - about 30% depressed. We did not oversample. We report AUC, F1, sensitivity and
+    specificity rather than accuracy alone, and we choose the decision threshold by
+    Youden's J instead of 0.5.
+
+Q9. Did you find problems in the dataset?
+A.  Yes: participant 440 is corrupt; four participants are excluded by the release itself
+    (342, 394, 398, 460); one participant's binary label disagrees with the score rule;
+    three transcripts contain no interviewer rows; and the training split has an
+    18-point gender gap in depression rate that does not exist in dev/test.
+
+Q10. Why not use the interviewer's questions - they are part of the conversation?
+A.  Because the interview branches on the answers, so the questions leak the outcome. A
+    2024 ACL-published study reached 0.90 F1 using ONLY the interviewer's prompts. That
+    signal will not exist in a real counselling session, so using it would inflate our
+    numbers and fail in deployment.
+
+Q11. Why did you use 80/20 when the corpus has an official split?
+A.  We use both. The 80/20 split, repeated 10 times, is our primary estimate because it
+    uses more data for validation and is far more stable. The official split is our
+    secondary evaluation, because it is the only number comparable with published work.
+
+--- FEATURES ------------------------------------------------------------------
+
+Q12. What are the 3,096 text features?
+A.  24 hand-counted lexical features (pronoun rates, absolutist words, negative and
+    positive words, negations, hedges, past tense, sleep/fatigue words, answer lengths,
+    vocabulary richness, ratios) plus 3,072 sentence-meaning features: each answer
+    embedded by all-mpnet-base-v2 into 768 numbers, then pooled four ways - mean,
+    length-weighted mean, max and standard deviation.
+
+Q13. Why four poolings instead of just the mean?
+A.  Each captures something different. The mean is the overall tone; the weighted mean
+    lets longer answers count more; the max preserves the single most extreme statement,
+    which an average would erase; the standard deviation measures how much the meaning
+    varied across the interview.
+
+Q14. What are the 64 audio features, and why not the original 85?
+A.  Pitch (YIN, in semitones), loudness in dB, voiced ratio, jitter and shimmer proxies,
+    answer durations, words per answer and speaking rate, each summarised by nine
+    statistics. The original 85 included 24 features that depended on the interviewer's
+    timing - response latency and between-turn gaps - which measure Ellie's scripted
+    pacing rather than the participant. Removing them cost accuracy but is honest.
+
+Q15. What are the 224 video features?
+A.  14 facial action-unit intensities and 6 presence rates from OpenFace, their total,
+    and 12 gaze directions - each summarised by mean, std, percentiles, max and
+    frame-to-frame movement. Action units are muscle movements: AU04 is frowning, AU12
+    smiling, AU45 blinking.
+
+Q16. Why OpenFace and not a deep video model?
+A.  DAIC-WOZ ships no raw video - only pre-extracted facial features - so there is
+    nothing to train a deep video model on. OpenFace produces the same family of
+    measurements as the corpus, which is what makes training and deployment match.
+
+Q17. How do you ensure the features at deployment match the features at training?
+A.  Three ways. The training run imports the website's own extraction functions; the
+    bundle carries the exact list of column names, and the website builds each model's
+    input BY NAME; and we verified on the corpus that the website reproduces the training
+    features (lexical exact, timing to 1e-13) and reproduces the published AUCs exactly.
+
+--- MODELS AND TRAINING -------------------------------------------------------
+
+Q18. Which algorithm did you finally use?
+A.  One early-fusion pipeline: per-modality median imputation, standardisation and PCA,
+    block weighting, then L2-regularised logistic regression over the 40 components.
+
+Q19. Why logistic regression and not deep learning?
+A.  With 107-142 training people, deep models overfit. Earlier work on this corpus tried
+    six deep and attention architectures - all lost to simple models. Linear models are
+    also the reason our explanations can be exact rather than approximate.
+
+Q20. What is PCA doing here?
+A.  Reducing each modality to a small number of uncorrelated components (text 20, audio
+    10, video 10). It prevents the 3,096 text columns from swamping 64 audio columns, and
+    it keeps the total number of parameters small enough for 150 training people.
+
+Q21. What is early fusion, in your own words?
+A.  Joining all the measurements from all modalities into one vector and training ONE
+    model on it, so the model can use relationships between modalities. Late fusion
+    instead trains one model per modality and combines their output probabilities.
+
+Q22. Why is naive early fusion a bad idea?
+A.  Because of scale and width imbalance. We measured it: a global feature selection over
+    all 3,384 columns chose 50 text columns and zero audio or video columns, so the
+    "fusion" model returned byte-identical results to a text-only model.
+
+Q23. How did you fix that?
+A.  Per-block PCA so each modality contributes a comparable number of components,
+    per-block weights (text 0.2236, audio 0.6325, video 0.3162) so no block wins by
+    width, and an L2 penalty so no block can be deleted.
+
+Q24. Why did v1 give audio zero weight?
+A.  v1 used an elastic-net penalty, which contains L1 and can drive coefficients to
+    exactly zero. It deleted the entire audio block. v2 uses L2 only, which shrinks but
+    never deletes.
+
+Q25. So does audio actually help?
+A.  On this corpus, no. Dropping audio changes cross-validated AUC by +0.019 and dropping
+    video by +0.051 - both slightly better without them. We include them because the
+    project requires a multimodal decision, and we report the cost: -0.0577 AUC.
+
+Q26. How is the decision threshold chosen?
+A.  Youden's J - the threshold maximising sensitivity + specificity - 1 - computed on
+    out-of-fold predictions of the training data only, never on the test set.
+
+Q27. Why is the cut-off below 50%?
+A.  Because only about 30% of the training participants are depressed, so the model's
+    probabilities sit low. At 0.5 it would miss most depressed people.
+
+Q28. What is out-of-fold prediction and why does it matter?
+A.  A prediction made for a data point by a model that did not train on it. The
+    late-fusion combiner is trained on out-of-fold probabilities so it never sees
+    over-confident predictions, which would teach it the wrong weights.
+
+Q29. How did you prevent overfitting?
+A.  Strong regularisation (C=0.1, L2), dimensionality reduction, simple models, selection
+    redone inside every cross-validation split, a test set touched once, and confidence
+    intervals on everything.
+
+Q30. How do you know your best model is not just a lucky split?
+A.  Because we repeated the entire procedure on 10 different splits. One seed showed
+    inner-CV 0.8796 but test AUC 0.5421 - proof that single-split numbers cannot be
+    trusted at this sample size.
+
+--- RESULTS -------------------------------------------------------------------
+
+Q31. What accuracy do you get?
+A.  On the official test split, the shipped model: accuracy 76.6%, AUC 0.8463, F1 0.6857,
+    sensitivity 85.7%, specificity 72.7%. Repeated-split cross-validated AUC 0.7056 for
+    the constrained model (0.7633 unconstrained).
+
+Q32. Is that better than what you started with?
+A.  Yes. The inherited baseline on the same protocol was AUC 0.768, F1 0.611, accuracy
+    0.702. We improved all three.
+
+Q33. Why is your accuracy lower than papers claiming 90-99%?
+A.  Because those numbers mostly come from interviewer leakage, tuning on the test set,
+    or unverifiable protocols. The one paper that reached 0.90 F1 did so by deliberately
+    exploiting the interviewer bias - it was a warning, not a result to copy.
+
+Q34. Which modality is most useful?
+A.  Text, by a wide margin: 77% of the decision weight, and removing it collapses the
+    model to chance (AUC 0.486).
+
+Q35. What does ROC-AUC mean?
+A.  The probability that the model scores a randomly chosen depressed person above a
+    randomly chosen non-depressed person. 0.5 is guessing, 1.0 is perfect. It is
+    independent of the threshold and of class balance.
+
+Q36. Why report F1 and balanced accuracy rather than accuracy alone?
+A.  Because 70% of the corpus is not depressed, so a model that always said "not
+    depressed" would be 70% accurate and useless.
+
+Q37. Your confidence intervals are wide. Why report them?
+A.  Because with 47 test people they honestly are wide (roughly 0.72-0.95 for our AUC).
+    Hiding that would imply a precision we do not have.
+
+--- EXPLAINABLE AI ------------------------------------------------------------
+
+Q38. What is SHAP?
+A.  A method from cooperative game theory that splits a prediction among its features so
+    that the parts add up to the whole. For a linear model it has a closed form:
+    weight x (value - training mean) / training std.
+
+Q39. Did you use the shap library?
+A.  We compute the closed form directly - it is exact and needs no background sampling -
+    and we cross-checked it against shap's LinearExplainer: agreement to 6.19e-16. We also
+    verified additivity (contributions + intercept = the model's log-odds) to 3.55e-15.
+
+Q40. How do you explain 3,072 embedding numbers to a counsellor?
+A.  Two ways. They are summed into one item, "what was said, overall", which is exact for
+    a linear model. And the text score is split across the participant's OWN sentences -
+    exactly for three of the four pooling blocks, with the fourth reported as an
+    unattributed remainder rather than being faked.
+
+Q41. Why not Grad-CAM for the video part?
+A.  Grad-CAM needs a convolutional network, spatial feature maps and the image itself. We
+    have none: the video path is a linear model over 224 per-session statistics, and
+    DAIC-WOZ ships no raw video to train a CNN on. Its gradient would be the model's
+    constant coefficients - identical for every session, carrying no session-specific
+    information. Presenting that as Grad-CAM would be decoration, not explanation.
+
+Q42. So what do you show for video instead?
+A.  A face-region attribution: every one of the 224 video features is mapped to the part
+    of the face it measures, and the report shades a face diagram by each region's real
+    SHAP contribution. It is labelled "which facial measurements the model weighed", never
+    Grad-CAM.
+
+Q43. What would make Grad-CAM possible later?
+A.  A consented raw-video dataset, a CNN trained on face crops with enough participants,
+    and evidence that such a model beats the action-unit features at all.
+
+Q44. Can the counsellor see WHY a particular person was flagged?
+A.  Yes: the strongest features with direction, the participant's own sentences that moved
+    the score, the face regions that contributed, the modality shares, and a
+    plain-language summary written to be read aloud.
+
+--- SYSTEM AND ENGINEERING ----------------------------------------------------
+
+Q45. Explain your architecture.
+A.  Three tiers: React frontend; Spring Boot backend with PostgreSQL for accounts,
+    sessions and reports; a FastAPI ML service for the pipeline and models. The frontend
+    talks only to the backend with JWT; the backend calls the ML service over an internal
+    API protected by a shared secret.
+
+Q46. Why separate the ML service?
+A.  Language fit, independent restart and scaling, and security: it is the process that
+    loads .joblib files, and loading one executes code.
+
+Q47. How does a model get updated without redeploying?
+A.  The admin uploads a .joblib; the backend hashes and stores it and asks the ML service
+    to validate it by column NAME; on activation a manifest is written and the ML service
+    hot-reloads. The cache is swapped only after every model loads successfully.
+
+Q48. How is the model upload secured?
+A.  ADMIN role only, JWT-authenticated, the internal endpoint needs a shared secret
+    compared in constant time, every file is SHA-256 hashed and audit-logged, size-capped
+    at 520 MB, and the page warns that uploading a model runs its code.
+
+Q49. What database design did you use and why Flyway?
+A.  27 entities across accounts, clinical workflow, speakers, ML operations and
+    governance. Flyway gives versioned, repeatable migrations (V1-V15), so every machine
+    has the same schema and the change history lives in git.
+
+Q50. How do you identify the participant in the recording?
+A.  The counsellor (and any companion) enrol by reading a fixed passage, producing a
+    256-dimensional voice embedding. Diarized speakers are matched by cosine similarity
+    (>= 0.55 and a 0.06 margin); whoever is unmatched is the participant. If it is
+    ambiguous the session is refused.
+
+Q51. What happens if the ML service is down?
+A.  The session is marked FAILED with a readable reason and can be retried; the rest of
+    the application keeps working.
+
+Q52. How did you test the system?
+A.  Parity tests against the corpus (features and AUCs reproduced exactly), API
+    integration tests of the model upload and activation rules, end-to-end pipeline runs
+    on real recordings, unit checks of the explanation mathematics, and manual testing of
+    every page and role. There is no automated unit-test suite yet - that is future work.
+
+Q53. Give an example of a real bug you found and fixed.
+A.  Four: (1) every short recording came back "depressed" because the text model returned
+    a constant far outside its training range - fixed with the adequacy guard; (2) an
+    explanation said "spoke loudly" when the value was below average, because direction
+    was inferred from the contribution's sign - now read from the measurement; (3) the
+    gaze conversion applied the rotation transposed, a 20x error caught against the
+    corpus's own ground truth; (4) the report labelled the score "confidence", so
+    "Depressed, 35%" looked contradictory - now labelled "depression score" with the
+    cut-off drawn on the ring.
+
+Q54. What privacy protections are in place?
+A.  Consent recorded per action; recordings purged after features are extracted; features
+    and transcripts retained instead of media; per-participant erasure; audit logging;
+    role-based access; and the research dataset is opt-in and labelled by the counsellor.
+
+Q55. What is stored after a session, and why?
+A.  The feature vectors, the participant transcript, the report and its explanation, and
+    the speaker-attribution evidence. That is exactly what a future retraining needs, and
+    it is why the original video can be deleted safely.
+
+--- BIGGER PICTURE ------------------------------------------------------------
+
+Q56. What is the biggest weakness of this project?
+A.  That the signal is almost entirely in the text, so the multimodal claim is weaker than
+    it looks on this corpus - and that our training population (US adults, virtual
+    interviewer) does not match our intended users.
+
+Q57. How would you improve accuracy next?
+A.  Not by another architecture on this corpus. By collecting consented, counsellor-
+    labelled local sessions and retraining on them - that addresses population,
+    recording conditions and segmentation together.
+
+Q58. Can someone fake the result?
+A.  Yes, as with any interview-based screening. It is designed for cooperative counselling
+    sessions, and the counsellor's judgement is final.
+
+Q59. What are the ethical risks?
+A.  A false negative may delay help; a false positive may label someone wrongly. We
+    mitigate by tuning for sensitivity, by stating the error rate on the report, by
+    refusing unusable input, by never acting automatically, and by keeping the counsellor
+    in charge.
+
+Q60. Why should anyone trust your numbers?
+A.  Because every one of them is reproducible from the repository: the split files, the
+    protocol, the model bundle with its own metrics, the verification logs showing the
+    website reproduces the training features and AUCs, and the decisions log recording
+    every deviation and its cost.
+
+================================================================================
+25. GLOSSARY
+================================================================================
+
+  Action Unit (AU)     one facial muscle movement from the Facial Action Coding System
+                       (AU04 frown, AU12 smile, AU45 blink)
+  AUC / ROC-AUC        chance that a random depressed person scores above a random
+                       non-depressed one; 0.5 = guessing
+  Balanced accuracy    average of sensitivity and specificity
+  Bootstrap CI         resampling the test people many times to see how much a metric
+                       could vary
+  Diarization          deciding who spoke when in a recording
+  Early fusion         joining all modalities' features into one vector, one model
+  Embedding            a vector of numbers representing meaning (sentences) or identity
+                       (voices)
+  F1                   harmonic mean of precision and recall for the depressed class
+  Imputation           filling a missing measurement (here, with the training median)
+  Late fusion          combining the output probabilities of per-modality models
+  Log-odds             the linear model's raw output z; probability = 1/(1+e^-z)
+  OOF (out-of-fold)    a prediction made by a model that did not train on that point
+  PCA                  principal component analysis - compresses many correlated columns
+                       into a few uncorrelated ones
+  PHQ-8                8-item depression questionnaire; >= 10 means probable depression
+  Precision            of those flagged depressed, the share who are
+  Recall / sensitivity of the depressed people, the share flagged
+  Regularisation       penalising large coefficients so a model generalises (L1 can zero
+                       them out; L2 only shrinks)
+  SHAP                 a feature's exact share of a prediction, summing to the prediction
+  Specificity          of the non-depressed people, the share correctly cleared
+  Standardisation      converting to (value - mean) / standard deviation
+  Voiceprint           a 256-number summary of a voice, used to recognise a speaker
+  Youden's J           sensitivity + specificity - 1; maximised to choose the threshold
+
+================================================================================
+26. CURRENT STATUS OF THE DEPLOYMENT (as of 12 September 2026)
+================================================================================
+
+  INSTALLED AND SERVING RIGHT NOW
+    - Full platform running locally: PostgreSQL (Docker, port 5433), Spring Boot backend
+      (8080), FastAPI ML service (8000), React frontend (5173).
+    - SERVING MODEL: early fusion v2 (models/early_fusion_v2.joblib), uploaded and
+      activated through Admin -> Models on 12 September 2026. 3,384 inputs, decision
+      cut-off 0.4412, turn segmentation.
+    - Verified live on a real session end to end: the single model produced the score,
+      and all three modalities contributed - text 70.3%, audio 19.2%, video 10.6% of the
+      reasoning for that session (the model's trained shares are 77.1 / 12.8 / 10.2).
+    - The report for that session carried: the depression score with its cut-off marked,
+      out-of-range warnings per modality, the participant's own sentences ranked by how
+      much they moved the result, and a face-region attribution spread across eyes,
+      brows, gaze, jaw and mouth.
+    - Also installed and versioned but not serving while v2 is active: the DAIC-WOZ text,
+      audio, video and 3-way late-fusion models, and early fusion v1. Any of them can be
+      restored from Admin -> Models without a redeploy.
+    - Verified: feature parity with training, exact attribution mathematics (contributions
+      + intercept = the model's log-odds), model file integrity (SHA-256), and the
+      corrected gaze conversion.
+
+  KNOWN AND DELIBERATE
+    - The report's stated error rate ("wrong about 3 times in 10") reflects roughly 70-77%
+      accuracy, which is where all our models sit. It does not need changing for v2.
+    - Audio and video are included because the project requires a multimodal decision;
+      section 19.4 states honestly what they contribute and what they cost.
+
+  REPOSITORY
+    - Public GitHub repository; the corpus, trained bundles, recordings and all secrets
+      are excluded by .gitignore.
+    - 37 commits, every one describing what changed and why.
+
+================================================================================
+END OF DOCUMENT
+================================================================================
