@@ -276,9 +276,10 @@ public class ModelVersionService {
         ModelVersion active = modelVersionRepository
                 .findByModalityAndLanguageAndActiveIsTrue(modality, lang)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        modality == ModelModality.VIDEO
-                                ? "No " + lang + " video model is active."
-                                : lang + " " + modality + " is already using the built-in model."));
+                        hasBuiltIn(modality)
+                                ? lang + " " + modality + " is already using the built-in model."
+                                : "No " + lang + " " + modality.manifestKey().replace('_', ' ')
+                                        + " model is active."));
 
         // Video has no built-in model and is optional, so "reverting" it just
         // removes it. That is safe unless the active fusion model takes video
@@ -300,7 +301,7 @@ public class ModelVersionService {
         // rather than letting an admin discover it from a failed session.
         // Skipped for video: it is optional, so removing a language's only video
         // model never makes that language unscorable.
-        if (modality != ModelModality.VIDEO && !LanguageCatalogService.DEFAULT_LANGUAGE.equals(lang)) {
+        if (hasBuiltIn(modality) && !LanguageCatalogService.DEFAULT_LANGUAGE.equals(lang)) {
             long remaining = modelVersionRepository.findByLanguageOrderByUploadedAtDesc(lang).stream()
                     .filter(v -> v.getModality() == modality && !v.getId().equals(active.getId()))
                     .count();
@@ -328,9 +329,9 @@ public class ModelVersionService {
 
         auditLogService.log(admin, "MODEL_REVERTED_TO_DEFAULT", "MODEL_VERSION", active.getId(),
                 lang + " " + modality + " reverted from " + active.getVersionLabel()
-                        + (modality == ModelModality.VIDEO
-                                ? " (removed; there is no built-in video model)"
-                                : " to the built-in model"));
+                        + (hasBuiltIn(modality)
+                                ? " to the built-in model"
+                                : " (removed; there is no built-in " + modality + " model)"));
         log.info("Reverted {} {} to the built-in model (was '{}')",
                 lang, modality, active.getVersionLabel());
     }
@@ -362,6 +363,17 @@ public class ModelVersionService {
             throw new ResponseStatusException(HttpStatus.INTERNAL_SERVER_ERROR,
                     "Could not write the model manifest at " + manifestPath, e);
         }
+    }
+
+    /**
+     * Whether the project ships weights for this stage. Text, audio and fusion
+     * have a built-in English baseline to fall back on; video and early fusion
+     * do not, so "revert" removes them instead of restoring anything.
+     */
+    private static boolean hasBuiltIn(ModelModality modality) {
+        return modality == ModelModality.TEXT
+                || modality == ModelModality.AUDIO
+                || modality == ModelModality.FUSION;
     }
 
     private void validateUploadShape(MultipartFile file) {

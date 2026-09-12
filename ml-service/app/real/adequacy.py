@@ -49,16 +49,24 @@ import os
 # a claim that can be defended from the data rather than a threshold picked to
 # feel about right. Sessions above it may still be short, and the caller is
 # expected to say so — but they are at least inside the distribution.
-MIN_WORDS = int(os.environ.get("MIN_PARTICIPANT_WORDS", "167"))
-MIN_UTTERANCES = int(os.environ.get("MIN_PARTICIPANT_UTTERANCES", "42"))
+MIN_WORDS = int(os.environ.get("MIN_PARTICIPANT_WORDS", "165"))
+
+# Counted in SPEAKER TURNS, which is what this platform's diarization produces
+# and what the models now serving were trained on (consecutive participant rows
+# merged, mirroring a diarized turn). The floor is the 5th percentile of the
+# training split, not its minimum: three corpus interviews contain no
+# interviewer rows at all, so merging collapses them into a single turn and the
+# raw minimum is 1 — an artefact that would let an empty session through.
+MIN_UTTERANCES = int(os.environ.get("MIN_PARTICIPANT_UTTERANCES", "39"))
 
 # Where the training set actually sits, for the message. Hardcoded because
 # they are properties of the shipped models, and recomputing them at runtime
 # would need the corpus present in production, which it is not.
-TRAINING_MEDIAN_WORDS = 1293
-TRAINING_MIN_WORDS = 167
-TRAINING_MEDIAN_UTTERANCES = 155
-TRAINING_MIN_UTTERANCES = 42
+TRAINING_MEDIAN_WORDS = 1223
+TRAINING_MIN_WORDS = 165
+TRAINING_MAX_WORDS = 4551
+TRAINING_MEDIAN_UTTERANCES = 55
+TRAINING_MIN_UTTERANCES = 39
 
 
 class SessionTooShort(Exception):
@@ -76,9 +84,10 @@ class SessionTooShort(Exception):
         super().__init__(
             f"This interview is too short to analyse. Only {n_words} words across "
             f"{n_utterances} separate replies were recorded from the participant, and "
-            f"the models were trained on interviews of {TRAINING_MIN_WORDS}-4,611 words "
-            f"(typically around {TRAINING_MEDIAN_WORDS}) across "
-            f"{TRAINING_MIN_UTTERANCES}-386 replies. Scoring a recording this short "
+            f"the models were trained on interviews of {TRAINING_MIN_WORDS}-{TRAINING_MAX_WORDS:,} "
+            f"words (typically around {TRAINING_MEDIAN_WORDS:,}) across at least "
+            f"{TRAINING_MIN_UTTERANCES} replies (typically around "
+            f"{TRAINING_MEDIAN_UTTERANCES}). Scoring a recording this short "
             f"would not produce a weaker result, it would produce a meaningless one: "
             f"the model returns nearly the same value whatever is said, which happens "
             f"to land on the depressed side of the threshold every time. Record a "

@@ -52,6 +52,12 @@ MANIFEST_PATH = MODELS_DIR / "active_manifest.json"
 
 MODALITIES = ("text", "audio", "fusion")
 
+# One model on the concatenated features of every modality. It REPLACES the
+# text/audio/fusion set for a language rather than joining it: when one is
+# active, it alone produces that language's prediction, and the language is
+# scorable on its strength alone. See real_inference.run_real_inference.
+EARLY_FUSION = "early_fusion"
+
 # Used when no manifest exists yet — the files the project shipped with. These
 # are English models; no other language ships with weights.
 DEFAULT_FILENAMES = {
@@ -72,7 +78,7 @@ DEFAULT_LANGUAGE = "en"
 #
 # Video is deliberately NOT in DEFAULT_FILENAMES: no video model ships with the
 # project, and a language must stay scorable without one.
-UPLOADABLE_MODALITIES = ("text", "audio", "video", "fusion")
+UPLOADABLE_MODALITIES = ("text", "audio", "video", "fusion", EARLY_FUSION)
 
 # The fusion model's own input width decides which modalities it combines, and
 # in what order. Nothing else selects the path: uploading a video model changes
@@ -143,20 +149,37 @@ def installed_files(language: str) -> dict[str, str]:
     return dict(read_manifest().get(language, {}))
 
 
-def scoring_languages() -> set[str]:
+def installed_modalities(language: str) -> tuple[str, ...]:
     """
-    Languages whose full model set is present on disk.
+    Every stage registered for this language whose file is actually on disk.
 
     Presence is checked against the filesystem rather than trusting the
     manifest, because "activated" and "actually installed" can drift — a file
     can be removed underneath us, and a language that advertises itself as
     scorable but then fails mid-session is worse than one that never offered.
     """
-    return {
-        language
-        for language, files in read_manifest().items()
-        if all(m in files and (MODELS_DIR / files[m]).exists() for m in MODALITIES)
-    }
+    files = installed_files(language)
+    return tuple(
+        m for m in UPLOADABLE_MODALITIES
+        if m in files and (MODELS_DIR / files[m]).exists()
+    )
+
+
+def early_fusion_installed(language: str) -> bool:
+    return EARLY_FUSION in installed_modalities(language)
+
+
+def scoring_languages() -> set[str]:
+    """
+    Languages that can be scored: either an early-fusion model, or the full
+    text/audio/fusion set.
+    """
+    languages = set()
+    for language in read_manifest():
+        installed = installed_modalities(language)
+        if EARLY_FUSION in installed or all(m in installed for m in MODALITIES):
+            languages.add(language)
+    return languages
 
 
 def feature_count(model: Any) -> int | None:
@@ -279,6 +302,10 @@ class Models:
         return cls._get(language, "video")
 
     @classmethod
+    def early_fusion(cls, language: str = DEFAULT_LANGUAGE) -> ModelBundle:
+        return cls._get(language, EARLY_FUSION)
+
+    @classmethod
     def preload_all(cls) -> None:
         """
         Call at startup so the first real request isn't slow.
@@ -288,8 +315,7 @@ class Models:
         not stop the service from serving English.
         """
         for language in sorted(scoring_languages()):
-            modalities = MODALITIES + (("video",) if _video_installed(language) else ())
-            for modality in modalities:
+            for modality in installed_modalities(language):
                 try:
                     cls._get(language, modality)
                 except Exception:
@@ -308,10 +334,13 @@ class Models:
         with cls._lock:
             fresh: dict[tuple[str, str], ModelBundle] = {}
             for language in sorted(scoring_languages()):
-                for modality in MODALITIES:
+                for modality in installed_modalities(language):
                     fresh[(language, modality)] = _load(language, modality)
-                if _video_installed(language):
-                    fresh[(language, "video")] = _load(language, "video")
+
+                # An early-fusion model serves that language on its own, so the
+                # rules binding the fusion model to a video model do not apply.
+                if (language, EARLY_FUSION) in fresh:
+                    continue
 
                 # A three-input fusion with no video model would fail on every
                 # session. Refusing here keeps the previously working models in

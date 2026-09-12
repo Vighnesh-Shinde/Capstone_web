@@ -47,6 +47,18 @@ const MODALITIES = [
       "[text, audio]; three means [text, audio, video], in that order. A three-input " +
       "model can only be activated once a video model is active for the same language.",
   },
+  {
+    value: "EARLY_FUSION",
+    label: "Early fusion",
+    features: "text + audio + video",
+    // Not one stage among others: it REPLACES the four above for a language.
+    optional: true,
+    blurb:
+      "One model trained on all the features joined together, instead of four models " +
+      "combining probabilities. While one is active it produces that language's result " +
+      "on its own, and the stages above are stored but unused. Its cols list decides " +
+      "which measurements it needs.",
+  },
 ];
 
 function formatDateTime(value) {
@@ -234,6 +246,12 @@ export default function AdminModels() {
                 (v) => v.modality === "FUSION" && v.language === lang.code && v.active
               );
               const fusionUsesVideo = activeFusion?.featureCount === 3;
+              // An early-fusion model takes over the whole language, so the
+              // four stage cards describe models that are no longer serving.
+              const earlyFusion = versions.find(
+                (v) => v.modality === "EARLY_FUSION" && v.language === lang.code && v.active
+              );
+              const supersededByEarly = earlyFusion && m.value !== "EARLY_FUSION";
               let detail;
               if (!active) {
                 detail = m.optional
@@ -241,6 +259,8 @@ export default function AdminModels() {
                   : lang.code === "en"
                     ? "Shipped with the project — no upload yet"
                     : "No model activated for this language";
+              } else if (supersededByEarly) {
+                detail = `Stored, but not serving — the early-fusion model "${earlyFusion.versionLabel}" produces this language's result`;
               } else if (m.value === "VIDEO" && !fusionUsesVideo) {
                 detail = "Active, but not used yet — the fusion model takes two inputs";
               } else if (m.value === "FUSION") {
@@ -283,9 +303,9 @@ export default function AdminModels() {
               and wondering why sessions still refuse to run. */}
           {lang.code !== "en" && !lang.scoring && (
             <div className="alert alert-warning">
-              {lang.name} is not yet available for sessions. Text, audio and fusion all
-              need an activated model before counselors can select it; video is optional.
-              English models are never substituted in.
+              {lang.name} is not yet available for sessions. It needs either an activated
+              early-fusion model, or activated text, audio and fusion models (video is
+              optional). English models are never substituted in.
             </div>
           )}
         </section>
@@ -312,9 +332,9 @@ export default function AdminModels() {
           ))}
         </select>
         <p className="hint">
-          Which language pipeline these weights serve. Uploading text, audio and fusion
-          for a new language is what makes that language selectable when creating a
-          session. Video is optional.
+          Which language pipeline these weights serve. A language becomes selectable when
+          creating a session once it has either an early-fusion model, or text, audio and
+          fusion models (video is optional).
         </p>
 
         <label className="field-label" htmlFor="modality">Stage</label>

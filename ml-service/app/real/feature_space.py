@@ -41,12 +41,51 @@ EXTRACTORS: dict[str, dict[str, list[str]]] = {
     "text": {"text": TEXT_COLS},
     "audio": {"audio": ALL_AUDIO_COLS},
     "video": {"mediapipe": VIDEO_COLS, "openface": OPENFACE_COLS},
+    # Early fusion is ONE model on the concatenated vector of every modality,
+    # an alternative to the text/audio/fusion set rather than an addition to
+    # it. Its columns may name anything any extractor produces, so it is
+    # validated against the union.
+    "early_fusion": {"early_fusion": TEXT_COLS + ALL_AUDIO_COLS + VIDEO_COLS + OPENFACE_COLS},
 }
+
+# Which extractor supplies a column, for a model whose inputs span modalities.
+# Order matters only for lookup speed; the four sets do not overlap.
+SOURCES: dict[str, list[str]] = {
+    "text": TEXT_COLS,
+    "audio": ALL_AUDIO_COLS,
+    "video_mediapipe": VIDEO_COLS,
+    "video_openface": OPENFACE_COLS,
+}
+_SOURCE_SETS = {name: set(cols) for name, cols in SOURCES.items()}
 _PRODUCIBLE = {m: {name: set(cols) for name, cols in e.items()} for m, e in EXTRACTORS.items()}
 
 # Assumed input order for a bundle that names no columns. Only accepted when
 # its width matches exactly; anything else must say what it expects.
 _UNNAMED_LAYOUT = {"text": TEXT_COLS, "audio": AUDIO_COLS, "video": VIDEO_COLS}
+
+
+def sources_for(cols) -> dict[str, list[str]]:
+    """
+    Group a model's columns by the extractor that produces them.
+
+    Used by early fusion, whose single input vector is built from several
+    extractors: the result says which of them this session has to run.
+    """
+    grouped: dict[str, list[str]] = {}
+    for c in cols:
+        for name, available in _SOURCE_SETS.items():
+            if c in available:
+                grouped.setdefault(name, []).append(c)
+                break
+    return grouped
+
+
+def modality_of(col: str) -> str:
+    """Which modality a column belongs to, for grouping an explanation."""
+    for name, available in _SOURCE_SETS.items():
+        if col in available:
+            return "video" if name.startswith("video") else name
+    return "text"
 
 
 def extractor_for(modality: str, cols) -> str | None:
@@ -64,7 +103,14 @@ def model_columns(modality: str, cols, width: int | None) -> list[str]:
     cannot feed it.
     """
     if not cols:
-        layout = _UNNAMED_LAYOUT[modality]
+        layout = _UNNAMED_LAYOUT.get(modality)
+        if layout is None:
+            # Early fusion spans modalities; there is no single layout that
+            # could be assumed, and guessing one would feed it scrambled inputs.
+            raise ValueError(
+                f"A {modality} model must name its inputs: re-save the bundle with a 'cols' "
+                f"list giving every input column in order."
+            )
         if width != len(layout):
             raise ValueError(
                 f"This {modality} model does not name its inputs (no 'cols' key), so they "

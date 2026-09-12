@@ -147,9 +147,19 @@ export default function Report() {
           <div className="card">
             <h2>Modality contributions</h2>
             <p className="muted">
-              How strongly each modality (audio, text, video) contributed to the
-              fused prediction
-              {details ? ", and what each one concluded on its own." : "."}
+              {details?.model_kind === "early_fusion" ? (
+                <>
+                  This deployment uses one model trained on all the measurements
+                  together, so there is no separate score per modality. These shares
+                  show how much of the model&apos;s reasoning rested on each.
+                </>
+              ) : (
+                <>
+                  How strongly each modality (audio, text, video) contributed to the
+                  fused prediction
+                  {details ? ", and what each one concluded on its own." : "."}
+                </>
+              )}
             </p>
             <ModalityContributions
               modalityContributions={report.modalityContributions}
