@@ -9,7 +9,7 @@ HOW TO USE THIS FILE
   2  Objectives and what was achieved       15  Frontend structure
   3  The dataset (DAIC-WOZ)                 16  ML service structure and model management
   4  Why this corpus is hard                17  Running the project on localhost
-  5  Features: what is measured             18  Explainable AI (SHAP, sentences, face, Grad-CAM)
+  5  Features: what is measured             18  Explainable AI (SHAP, sentences, face heat maps)
   6  The inference pipeline                 19  Results
   7  The models and how they were trained   20  Stakeholders: who does what
   8  Early fusion vs late fusion            21  Limitations
@@ -103,7 +103,8 @@ O8. Refuse rather than guess.
   - CLNF_hog.bin              appearance descriptors (not used by us)
 
   NOTE: DAIC-WOZ ships NO raw video. This single fact decides several design choices
-  later in this document - most importantly, Grad-CAM is impossible (section 18.4).
+  later in this document - most importantly, true Grad-CAM is impossible, and section
+  18.4 explains the Grad-CAM-style heat map drawn instead.
 
 3.3 Cohort actually used (measured in our own Phase-1 audit)
   - Participants listed in the official split files ..... 189
@@ -796,6 +797,16 @@ a retrained model with a different width must not require a schema migration.
      - agreement with the shap library's LinearExplainer: max error 6.193e-16
   So when the report says "used more negative words: +0.31", that number is the exact
   amount that feature moved the log-odds, not an approximation.
+  On the report, the SHAP values are drawn as WATERFALL charts ("How the score was built
+  (SHAP)"):
+     - one overall waterfall: base value (an average participant) -> + text SHAP ->
+       + audio SHAP -> + video SHAP -> this session's score, with the cut-off marked;
+     - one waterfall per modality (tabs: What was said / How it was said / Facial
+       movement): the 8 strongest features, then "N other measurements" summed, then
+       the modality total. Each bar says how far that measurement was from the training
+       average (for example "2.1 SD above").
+  The base value is computed as (model log-odds - sum of all SHAP values), so the chart
+  lands exactly on the score the model returned, by construction.
   NOTE for anyone re-running the check: shap's default masker subsamples the background
   to 100 rows and produces a spurious ~1e-3 disagreement; build the masker explicitly.
 
@@ -814,32 +825,49 @@ a retrained model with a different width must not require a schema migration.
   On the report this becomes "Which answers moved the result", quoting the participant's
   own sentences with a bar showing how strongly each pushed, and in which direction.
 
-18.4 GRAD-CAM: why it is NOT used, and what replaces it
+18.4 GRAD-CAM: why true Grad-CAM is not possible, and the heat map we draw instead
   Grad-CAM produces a heat map by taking the gradient of the class score with respect to
   the activations of a CONVOLUTIONAL feature map and projecting it back onto the INPUT
-  IMAGE. It needs three things: a convolutional network, spatial feature maps, and the
-  image itself at inference time.
-  This project has none of them:
+  IMAGE. It needs a convolutional network that reads pixels, and spatial feature maps.
+  The shipped model has neither:
      - No convolutional network. The video path is StandardScaler -> PCA -> logistic
        regression over tabular numbers. The gradient of the output with respect to the
        input is just the model's constant coefficient vector - identical for every
-       session, so a "heat map" from it would carry no session-specific information.
-     - No spatial dimension. The 224 video features are per-session STATISTICS (mean,
-       std, percentiles, frame-to-frame change) of action units and gaze. A statistic
-       over a whole interview has no (x, y) location to shade.
-     - No frames. DAIC-WOZ ships no raw video, so no CNN could be trained on it, and the
-       platform deletes the recording after processing, so there is no image to overlay.
-  WHAT WOULD BE NEEDED to make Grad-CAM legitimate here: a consented raw-video dataset,
-  a CNN trained on face crops with enough participants to fit it honestly, and evidence
-  that such a model beats the action-unit features at all (video has scored at or below
-  chance on this corpus in three separate runs).
-  WHAT WE DELIVER INSTEAD - and label honestly: a FACE-REGION ATTRIBUTION. Every one of
-  the 224 video features is mapped to the part of the face it measures (brows, eyes,
-  cheeks, nose, lips, mouth corners, mouth opening, jaw, chin, gaze direction, overall
-  movement, tracking quality). The report shades a face diagram by each region's real
-  SHAP contribution. It is a genuine per-region attribution over what was measured, and
-  the report calls it "which facial measurements the model weighed" - never Grad-CAM,
-  and never implied to be a pixel saliency map.
+       session, so a gradient "heat map" would carry no session-specific information.
+     - No spatial dimension in the model's input. The 224 video features are per-session
+       STATISTICS (mean, std, percentiles, frame-to-frame change) of action units and gaze.
+     - DAIC-WOZ ships no raw video, so no CNN could be trained on it.
+  WHAT WOULD BE NEEDED for true Grad-CAM: a consented raw-video dataset, a CNN trained on
+  face crops with enough participants to fit it honestly, and evidence that such a model
+  beats the action-unit features at all (video has scored at or below chance on this
+  corpus in three separate runs).
+
+  WHAT WE DELIVER: a GRAD-CAM-STYLE FACE HEAT MAP on the participant's own face, built
+  from the model's exact SHAP values rather than from gradients.
+     1. OpenFace tracks 68 face landmarks in every frame (the -2Dfp output), alongside
+        the muscle intensities (action units) and gaze the model already uses.
+     2. Each video feature belongs to one facial muscle (AU04 = brow lowerer, AU15 = lip
+        corner depressor, AU45 = blink, ...) or to gaze. Summing a muscle's SHAP values
+        gives that muscle's exact push on the score.
+     3. Only pushes TOWARD the reported outcome are drawn - the same idea as Grad-CAM's
+        ReLU, which keeps only positive evidence for the class being explained.
+     4. Frame choice: in each third of the interview, the frame where the face most
+        expressed what the model weighed:  argmax over frames of
+              sum over muscles ( push_m * z_mf )
+        where z_mf is how active muscle m is in frame f, standardised within the session.
+     5. Heat on a frame:  sum over muscles ( push_m * (0.4 + 0.6 * activity_mf) ), placed
+        as a Gaussian on the landmarks of that muscle (brow points for AU04, mouth corners
+        for AU12/AU15, eye points for blink and gaze ...), width 0.16 x the distance
+        between the eye corners. All frames share one colour scale, so they can be
+        compared. Colours use the classic Grad-CAM "jet" map (blue weak -> red strong).
+     6. The three stills are cropped around the face (256 x 256 JPEG) and stored in the
+        report, because the recording itself is deleted after processing.
+  It is labelled "Grad-CAM-style" on the report, with a sentence saying the model reads
+  measurements, not pixels. Below it the report keeps the FACE-REGION ATTRIBUTION for the
+  whole session, which also covers gaze, overall movement and tracking quality.
+  PRIVACY: three small face crops are a new kind of stored data. They live only inside
+  the report: erasure deletes them with it, and the research export never reads report
+  details.
 
 18.5 What the counsellor actually sees on a report
   1. Depression score as a ring, with the decision cut-off marked on it.
@@ -847,13 +875,17 @@ a retrained model with a different width must not require a schema migration.
      worst one in plain words (for example "Speaking volume").
   3. Modality contributions - text / audio / video shares, with a sentence explaining
      that for a single fused model these are shares of the reasoning, not separate verdicts.
-  4. Explainability breakdown - the strongest features, each with what was observed and
+  4. "How the score was built (SHAP)" - the overall waterfall and one waterfall each for
+     text, audio and video (section 18.2).
+  5. Explainability breakdown - the strongest features, each with what was observed and
      which way it pushed the result, translated out of model jargon by a glossary.
-  5. "Which answers moved the result" - the participant's own sentences.
-  6. "What the face contributed" - the shaded face diagram and region list.
-  7. "In plain words" - the same evidence written to be read aloud to the participant,
-     including the error rate and an explicit statement that this is not a diagnosis.
-  8. The counsellor's own assessment, stored separately and never fed back to the model.
+  6. "Which answers moved the result" - the participant's own sentences.
+  7. "What the face contributed" - three Grad-CAM-style heat maps on the participant's
+     face (section 18.4), then the shaded face diagram and region list.
+  8. "In plain words" - the same evidence written to be read aloud to the participant,
+     with an explicit statement that this is not a diagnosis and cannot decide anything
+     on its own.
+  9. The counsellor's own assessment, stored separately and never fed back to the model.
 
 ================================================================================
 19. RESULTS
@@ -1281,18 +1313,20 @@ A.  Two ways. They are summed into one item, "what was said, overall", which is 
     exactly for three of the four pooling blocks, with the fourth reported as an
     unattributed remainder rather than being faked.
 
-Q41. Why not Grad-CAM for the video part?
-A.  Grad-CAM needs a convolutional network, spatial feature maps and the image itself. We
-    have none: the video path is a linear model over 224 per-session statistics, and
-    DAIC-WOZ ships no raw video to train a CNN on. Its gradient would be the model's
-    constant coefficients - identical for every session, carrying no session-specific
-    information. Presenting that as Grad-CAM would be decoration, not explanation.
+Q41. Why not true Grad-CAM for the video part?
+A.  Grad-CAM needs a convolutional network that reads pixels, and its feature maps. Our
+    video path is a linear model over 224 per-session statistics, and DAIC-WOZ ships no
+    raw video to train a CNN on. Its gradient would be the model's constant coefficients -
+    identical for every session, carrying no session-specific information.
 
 Q42. So what do you show for video instead?
-A.  A face-region attribution: every one of the 224 video features is mapped to the part
-    of the face it measures, and the report shades a face diagram by each region's real
-    SHAP contribution. It is labelled "which facial measurements the model weighed", never
-    Grad-CAM.
+A.  A Grad-CAM-style heat map on three frames of the participant's own face. Each facial
+    muscle's exact SHAP value is placed on the landmarks OpenFace tracked for that muscle,
+    scaled by how active the muscle was in that frame, keeping only pushes toward the
+    reported outcome (like Grad-CAM's ReLU). The frames are the moments where the face
+    most expressed what the model weighed. Under it, a face-region attribution for the
+    whole session. It is labelled Grad-CAM-style, never Grad-CAM, because the heat comes
+    from SHAP values of measurements rather than gradients over pixels.
 
 Q43. What would make Grad-CAM possible later?
 A.  A consented raw-video dataset, a CNN trained on face crops with enough participants,
@@ -1452,8 +1486,9 @@ A.  Because every one of them is reproducible from the repository: the split fil
       corrected gaze conversion.
 
   KNOWN AND DELIBERATE
-    - The report's stated error rate ("wrong about 3 times in 10") reflects roughly 70-77%
-      accuracy, which is where all our models sit. It does not need changing for v2.
+    - The report does not quote an error rate. It says the result is screening support,
+      not a diagnosis, and that the counsellor's judgement is what counts; the measured
+      accuracy is documented in section 19.
     - Audio and video are included because the project requires a multimodal decision;
       section 19.4 states honestly what they contribute and what they cost.
 

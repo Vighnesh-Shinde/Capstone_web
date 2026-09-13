@@ -5,8 +5,8 @@ export default function Footer() {
     <footer className="app-footer">
       <p className="footer-disclaimer">
         This platform provides <strong>screening support</strong> for a qualified
-        clinician. It is not a diagnostic device, and its predictions are wrong roughly
-        one time in four. Never use its output as the sole basis for a clinical decision.
+        clinician. It is not a diagnostic device. Never use its output as the sole
+        basis for a clinical decision.
       </p>
       <nav className="footer-links">
         <Link to="/help">How it works</Link>

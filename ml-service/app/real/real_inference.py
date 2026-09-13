@@ -282,8 +282,9 @@ def _face_region_attributions(parts) -> list[dict]:
     report can shade a face diagram.
 
     This is NOT Grad-CAM and must never be labelled as one: there is no
-    convolutional network here and no frame is kept. It is the model's own
-    contributions, summed over the measurements describing each region.
+    convolutional network here. It is the model's own contributions, summed
+    over the measurements describing each region. face_heatmap.py draws the
+    same values on frames of the recording.
     """
     totals: dict[str, float] = {}
     for name, contribution, _ in parts:
@@ -294,6 +295,62 @@ def _face_region_attributions(parts) -> list[dict]:
         {"region": region, "contribution": round(value, 4), "share": round(abs(value) / scale, 4)}
         for region, value in sorted(totals.items(), key=lambda kv: -abs(kv[1]))
     ]
+
+
+def _logit(p: float) -> float:
+    p = min(max(float(p), 1e-12), 1 - 1e-12)
+    return float(np.log(p / (1 - p)))
+
+
+def _shap_summary(by_modality: dict[str, list], p_final: float, threshold: float,
+                  top_k: int = 8) -> dict:
+    """
+    The early-fusion model's SHAP values, shaped for the report's waterfalls.
+
+    Each contribution is already an exact SHAP value in log-odds (see
+    _early_fusion_blocks). The base value is derived as the model's own log-odds
+    minus their sum, rather than read from the intercept, so the waterfall lands
+    on the returned score by construction.
+
+    Text's 3,072 sentence-meaning columns are summed into one bar, as in the
+    explanation list: one embedding coordinate means nothing on its own, and the
+    next card splits that bar by sentence.
+    """
+    output = _logit(p_final)
+    everything = sum(c for parts in by_modality.values() for _, c, _ in parts)
+    modalities = {}
+    for modality, parts in by_modality.items():
+        if not parts:
+            continue
+        # (name, contribution, standardised value or None, underlying columns, hint)
+        if modality == "text":
+            meaning = [c for n, c, _ in parts if n.startswith("mpnet_")]
+            items = [(n, c, z, 1, None) for n, c, z in parts if not n.startswith("mpnet_")]
+            if meaning:
+                items.append(("sentence meaning", float(sum(meaning)), None, len(meaning),
+                              f"{len(meaning):,} sentence-meaning columns, summed"))
+        else:
+            items = [(n, c, z, 1, None) for n, c, z in parts]
+        ranked = sorted(items, key=lambda i: -abs(i[1]))
+        shown, rest = ranked[:top_k], ranked[top_k:]
+        modalities[modality] = {
+            "total": round(float(sum(i[1] for i in items)), 4),
+            "features": [
+                {"name": n, "contribution": round(float(c), 4),
+                 **({"z": round(float(z), 2)} if z is not None else {}),
+                 **({"hint": hint} if hint else {})}
+                for n, c, z, _, hint in shown
+            ],
+            "other": round(float(sum(i[1] for i in rest)), 4),
+            "other_count": int(sum(i[3] for i in rest)),
+        }
+    return {
+        "space": "log-odds",
+        "base_value": round(output - everything, 4),
+        "output_value": round(output, 4),
+        "threshold_value": round(_logit(threshold), 4),
+        "modalities": modalities,
+    }
 
 
 class VideoUnavailable(Exception):
@@ -403,7 +460,7 @@ def run_real_inference(
 
         def openface_map() -> dict[str, float]:
             try:
-                return openface_job.result()
+                return openface_job.result().features
             except openface_features.OpenFaceError as e:
                 raise VideoUnavailable(str(e)) from e
             except Exception as e:
@@ -484,6 +541,20 @@ def run_real_inference(
                 "contribution_basis": "share of the single model's feature contributions",
                 "distribution_warnings": distribution_warnings,
             }
+            if blocks:
+                scoring_details["shap"] = _shap_summary(by_modality, p_final, threshold)
+
+            # Drawn now, because the recording is deleted once the report is
+            # stored. A failure costs the pictures, never the report.
+            if video_extractor == "openface" and by_modality["video"]:
+                try:
+                    from app.real.face_heatmap import build_face_heatmap
+                    heatmap = build_face_heatmap(video_path, openface_job.result(),
+                                                 by_modality["video"], p_final >= threshold)
+                    if heatmap:
+                        scoring_details["face_heatmap"] = heatmap
+                except Exception:
+                    logger.exception("Face heat maps failed for session %s", session_id)
         else:
             # Each model is fed its own columns, by name.
             x_text = select(dict(zip(TEXT_COLS, text_raw)), text_cols)

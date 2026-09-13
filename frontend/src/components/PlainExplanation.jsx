@@ -15,9 +15,9 @@ import { plainSummary } from "../lib/featureGlossary";
  *    person does. It compares patterns; it does not know anyone's situation.
  *    (An earlier version said it "did not understand what was said", which was
  *    never true: the text model always read the words.)
- *  - It gives the error rate as "wrong about 3 times in every 10" rather than an
- *    accuracy percentage. A number people can picture is harder to over-trust.
- *    It is the held-out test result of the DAIC-WOZ models (70% accuracy).
+ *  - It says the tool cannot decide anything on its own and that the
+ *    counsellor's judgement is what counts. It does not quote an error rate on
+ *    the report; the measured results are documented with the project.
  *  - It never tells the participant what to do. That is the counsellor's
  *    territory, and a screening tool stepping into it would be overreach.
  */
@@ -87,9 +87,9 @@ export default function PlainExplanation({ factors, prediction }) {
           the microphone also change what it measures.
         </p>
         <p className="plain-caution">
-          In testing, this tool was <strong>wrong about 3 times in every 10</strong>. It cannot
-          decide anything on its own. The counsellor&apos;s own judgement is what
-          counts, and it is recorded separately on this report.
+          This tool <strong>cannot decide anything on its own</strong>. The
+          counsellor&apos;s own judgement is what counts, and it is recorded
+          separately on this report.
         </p>
       </div>
     </div>

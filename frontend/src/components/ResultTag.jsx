@@ -6,8 +6,7 @@
  * softening the words did not make the result less consequential, it only made
  * it harder to read: the operator could not tell what the tool had actually
  * concluded. The honesty belongs in the disclaimer beside it, which says
- * outright that this is screening support, is wrong about one time in four,
- * and is not a diagnosis.
+ * outright that this is screening support and not a diagnosis.
  *
  * Still deliberately two-valued. The model produces a binary prediction plus a
  * confidence, not a severity grade — there is no "moderate" or "severe" to

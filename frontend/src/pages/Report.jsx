@@ -8,6 +8,8 @@ import ConfidenceRing from "../components/ConfidenceRing";
 import PlainExplanation from "../components/PlainExplanation";
 import SentenceAttributions from "../components/SentenceAttributions";
 import FaceRegionMap from "../components/FaceRegionMap";
+import FaceHeatmap from "../components/FaceHeatmap";
+import ShapExplanation from "../components/ShapExplanation";
 import JudgmentPanel from "../components/JudgmentPanel";
 import ConsentRecord from "../components/ConsentRecord";
 import SpeakerAttributionPanel from "../components/SpeakerAttributionPanel";
@@ -112,9 +114,9 @@ export default function Report() {
             </div>
 
             <div className="alert alert-warning report-disclaimer">
-              This is an AI screening-support indicator, not a diagnosis. In testing
-              it was wrong about 3 times in every 10. The percentage is the
-              model&apos;s depression score — not a severity, and not how sure it is.{" "}
+              This is an AI screening-support indicator, not a diagnosis. The
+              percentage is the model&apos;s depression score — not a severity, and
+              not how sure it is.{" "}
               {cutOff !== null
                 ? `The model flags a session as depressed when the score reaches ${Math.round(cutOff * 100)}%. That cut-off was set during training and is below 50% because only about 3 in 10 people in the training interviews were depressed.`
                 : "The model flags a session as depressed when the score reaches its cut-off, which can be well below 50%."}{" "}
@@ -169,6 +171,8 @@ export default function Report() {
             />
           </div>
 
+          {details?.shap && <ShapExplanation shap={details.shap} />}
+
           <div className="card">
             <h2>Explainability breakdown</h2>
             <p className="muted">
@@ -190,16 +194,32 @@ export default function Report() {
             remainder={details?.unattributed_meaning}
           />
 
-          {details?.face_regions?.length > 0 && (
+          {(details?.face_regions?.length > 0 || details?.face_heatmap?.frames?.length > 0) && (
             <div className="card">
               <h2>What the face contributed</h2>
-              <p className="muted">
-                Where the video part of the score came from, by the part of the face each
-                measurement describes. The shading is the model&apos;s own contributions over
-                measurements such as brow lowering, blinking and gaze — the recording itself
-                is deleted after processing, and no image is analysed.
-              </p>
-              <FaceRegionMap regions={details.face_regions} />
+              {details?.face_heatmap?.frames?.length > 0 && (
+                <>
+                  <p className="muted">
+                    Three moments from this recording where the face most showed what the
+                    model weighed. The heat is the model&apos;s own SHAP value for each facial
+                    muscle, drawn where that muscle is and scaled by how active it was at
+                    that moment. It is Grad-CAM-style: the model reads OpenFace&apos;s
+                    measurements, not the image, so no pixel is scored. These stills were
+                    taken during processing; the recording itself is then deleted.
+                  </p>
+                  <FaceHeatmap heatmap={details.face_heatmap} />
+                </>
+              )}
+              {details?.face_regions?.length > 0 && (
+                <>
+                  <p className="muted">
+                    The same video contribution for the whole session, by the part of the
+                    face each measurement describes, including gaze, which has no single
+                    place on the face.
+                  </p>
+                  <FaceRegionMap regions={details.face_regions} />
+                </>
+              )}
             </div>
           )}
 

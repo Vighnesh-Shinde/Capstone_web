@@ -46,9 +46,12 @@ WHAT DOES NOT MATCH EXACTLY — stated so nobody assumes otherwise
 
 PRIVACY
 -------
-OpenFace writes per-frame landmarks to a temporary folder, which is deleted as
-soon as the summary numbers exist. Only the 224 session statistics leave this
-module, and they cannot reconstruct a face.
+OpenFace writes per-frame output to a temporary folder, which is deleted as
+soon as the summary numbers exist. Two things leave this module: the 224
+session statistics, which cannot reconstruct a face, and, in memory only for
+the rest of the request, the tracked frames' landmarks and muscle intensities.
+face_heatmap.py uses those to draw the report's face heat maps. They are never
+written anywhere, and they are gone when the request ends.
 """
 
 from __future__ import annotations
@@ -58,7 +61,9 @@ import os
 import subprocess
 import tempfile
 from concurrent.futures import Future, ThreadPoolExecutor
+from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -88,6 +93,15 @@ AU_INTENSITY = [
 AU_PRESENCE = ["AU04_c", "AU12_c", "AU15_c", "AU23_c", "AU28_c", "AU45_c"]
 GAZE = ["x_0", "y_0", "z_0", "x_1", "y_1", "z_1",
         "x_h0", "y_h0", "z_h0", "x_h1", "y_h1", "z_h1"]
+# OpenFace's 2D face landmarks (-2Dfp), 68-point iBUG layout, in pixels of the
+# tracked clip. Only these frame columns share a spelling with GAZE above, and
+# nothing reads GAZE names from the frame table: they are keys _corpus_gaze
+# builds itself.
+LANDMARKS_X = [f"x_{i}" for i in range(68)]
+LANDMARKS_Y = [f"y_{i}" for i in range(68)]
+# Kept for the heat maps: every third tracked frame is 10 per second, plenty
+# to find a representative moment in, at a third of the memory.
+KEYFRAME_STRIDE = 3
 
 _STATS = ("mean", "std", "p10", "p50", "p90", "max")
 
@@ -109,9 +123,10 @@ assert len(OPENFACE_COLS) == 224
 
 
 # Which part of the face each measurement describes, so a prediction can be
-# shown on a face diagram instead of as column names. Grad-CAM cannot be used
-# here — there is no convolutional network and no stored frames — so this is an
-# attribution over measured regions, and the report says exactly that.
+# shown on a face instead of as column names. True Grad-CAM cannot be used here:
+# the model reads these measurements, not pixels, and has no convolutional
+# network. So this is an attribution over measured regions, and the report says
+# exactly that.
 FACE_REGIONS = {
     "AU01": "brows", "AU02": "brows", "AU04": "brows",
     "AU05": "eyes", "AU45": "eyes",
@@ -139,6 +154,18 @@ def region_of(column: str) -> str:
 
 class OpenFaceError(Exception):
     """OpenFace features could not be produced for this recording."""
+
+
+@dataclass
+class OpenFaceResult:
+    """The session features, plus what the report's face heat maps need."""
+
+    features: dict[str, float]
+    # Tracked frames only, every KEYFRAME_STRIDE-th: timestamp, confidence,
+    # the corpus's action units, and the 68 landmarks.
+    frames: Any
+    # (width, height) of the clip OpenFace tracked: the landmarks' pixel space.
+    frame_size: tuple[int, int]
 
 
 # --------------------------------------------------------------------------
@@ -238,9 +265,10 @@ def available() -> bool:
     return OPENFACE_BIN.exists()
 
 
-def compute_openface_features(video_path: str) -> dict[str, float]:
+def compute_openface_features(video_path: str) -> OpenFaceResult:
     """
-    Run OpenFace on a recording and return its session features by name.
+    Run OpenFace on a recording and return its session features by name, with
+    the tracked frames kept in memory for the face heat maps.
 
     Raises OpenFaceError when OpenFace is missing, fails, or finds too little
     face to measure. The caller decides whether that matters: it only does when
@@ -275,7 +303,8 @@ def compute_openface_features(video_path: str) -> dict[str, float]:
         out_dir = Path(tmp) / "out"
         run = subprocess.run(
             [str(OPENFACE_BIN), "-f", str(clip), "-out_dir", str(out_dir),
-             "-aus", "-gaze", "-pose", "-mloc", str(OPENFACE_BIN.parent / LANDMARK_MODEL), "-q"],
+             "-aus", "-gaze", "-pose", "-2Dfp",
+             "-mloc", str(OPENFACE_BIN.parent / LANDMARK_MODEL), "-q"],
             capture_output=True, text=True, timeout=TIMEOUT_SECONDS, cwd=str(OPENFACE_BIN.parent),
         )
         csv_path = out_dir / "face.csv"
@@ -284,8 +313,17 @@ def compute_openface_features(video_path: str) -> dict[str, float]:
             raise OpenFaceError("Facial analysis failed on this recording.")
 
         frames = pd.read_csv(csv_path)
+        import cv2
+        capture = cv2.VideoCapture(str(clip))
+        frame_size = (int(capture.get(cv2.CAP_PROP_FRAME_WIDTH)),
+                      int(capture.get(cv2.CAP_PROP_FRAME_HEIGHT)))
+        capture.release()
 
     features, tracked = summarise(frames)
+    frames = frames.rename(columns=lambda c: c.strip())
+    tracked_frames = frames[(frames["success"] == 1) & (frames["confidence"] >= MIN_CONFIDENCE)]
+    keep = ["timestamp", "confidence"] + AU_INTENSITY + AU_PRESENCE + LANDMARKS_X + LANDMARKS_Y
+    keyframes = tracked_frames[[c for c in keep if c in tracked_frames.columns]].iloc[::KEYFRAME_STRIDE]
     if tracked < 5:
         raise OpenFaceError(
             f"No usable face was found in this recording (only {tracked} of {len(frames)} "
@@ -294,7 +332,8 @@ def compute_openface_features(video_path: str) -> dict[str, float]:
         )
     logger.info("OpenFace: %d of %d frames tracked (%.0f%%).",
                 tracked, len(frames), 100.0 * tracked / max(len(frames), 1))
-    return features
+    return OpenFaceResult(features=features, frames=keyframes.reset_index(drop=True),
+                          frame_size=frame_size)
 
 
 # One worker: OpenFace is CPU-heavy, and two sessions tracking faces at once
@@ -304,7 +343,7 @@ _executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="openface")
 
 def start(video_path: str) -> Future:
     """
-    Begin OpenFace in the background and return a Future for its features.
+    Begin OpenFace in the background and return a Future for its OpenFaceResult.
 
     Started before transcription so the two overlap: OpenFace is a separate
     process, and waiting for speech recognition to finish before starting it

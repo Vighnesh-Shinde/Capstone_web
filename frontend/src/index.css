@@ -2182,3 +2182,45 @@ select option:disabled { color: var(--text-mute); }
 .error-state-title { margin: 0 0 4px; font-size: 14.5px; font-weight: 650; color: var(--danger); }
 .error-state p { margin: 0 0 10px; }
 .error-state p:last-child { margin-bottom: 0; }
+
+/* SHAP waterfall (ShapExplanation.jsx) */
+.shap-waterfall { display: grid; gap: 8px; margin-top: 12px; }
+.shap-row { display: grid; grid-template-columns: minmax(150px, 34%) 1fr 58px; gap: 12px; align-items: center; }
+.shap-label { display: grid; min-width: 0; }
+.shap-name { font-size: 13px; font-weight: 600; color: var(--text-h); overflow-wrap: anywhere; }
+.shap-total .shap-name { font-weight: 700; }
+.shap-hint { font-size: 11.5px; color: var(--text-mute); }
+.shap-track { position: relative; height: 14px; border-radius: 4px; background: var(--surface-sunk); }
+.shap-bar { position: absolute; top: 2px; bottom: 2px; border-radius: 3px; }
+.shap-up .shap-bar { background: var(--warn); }
+.shap-down .shap-bar { background: var(--ok); }
+.shap-total .shap-bar { background: var(--violet); }
+.shap-marker { position: absolute; top: -3px; bottom: -3px; border-left: 2px dashed var(--text-h); }
+.shap-value { font-size: 12.5px; text-align: right; font-variant-numeric: tabular-nums; color: var(--text); }
+.shap-axis-note { display: flex; align-items: center; gap: 6px; margin: 4px 0 0; }
+.shap-marker-key { display: inline-block; height: 12px; border-left: 2px dashed var(--text-h); }
+.shap-tabs { display: flex; flex-wrap: wrap; gap: 6px; margin: 20px 0 6px; }
+.shap-tab {
+  padding: 5px 12px; font-size: 13px; cursor: pointer; color: var(--text);
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-pill);
+}
+.shap-tab[aria-selected="true"] { color: #fff; background: var(--violet); border-color: var(--violet); }
+@media (max-width: 600px) {
+  .shap-row { grid-template-columns: 1fr 50px; }
+  .shap-label { grid-column: 1 / -1; }
+}
+
+/* Face heat maps (FaceHeatmap.jsx) */
+.face-heatmap { margin: 14px 0 20px; }
+.heatmap-frames { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.heatmap-frame { margin: 0; }
+.heatmap-frame img {
+  display: block; width: 100%; aspect-ratio: 1; object-fit: cover;
+  border: 1px solid var(--border); border-radius: 10px;
+}
+.heatmap-frame figcaption { margin-top: 5px; font-size: 12.5px; }
+.heatmap-scale { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.heatmap-gradient {
+  flex: 0 1 180px; height: 10px; border-radius: 5px;
+  background: linear-gradient(90deg, #00007f, #0000ff, #00ffff, #ffff00, #ff0000, #7f0000);
+}
